@@ -1,0 +1,8 @@
+# RDP connection files contain hostnames
+*.rdp
+
+# Runtime logs written by the scripts
+*.log
+
+# Editor / script backups
+*.bak

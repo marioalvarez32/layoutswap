@@ -26,5 +26,8 @@ export function commandsMock(): typeof commands {
     isWindowMaximized: vi.fn<typeof commands.isWindowMaximized>().mockResolvedValue(false),
     probe: vi.fn<typeof commands.probe>().mockResolvedValue(inventoryFixture()),
     captureLayout: vi.fn<typeof commands.captureLayout>().mockResolvedValue({ outcome: 'saved', layout: layoutFixture() }),
+    scriptStates: vi.fn<typeof commands.scriptStates>().mockResolvedValue([]),
+    regenerateScript: vi.fn<typeof commands.regenerateScript>().mockResolvedValue(layoutFixture()),
+    openScript: vi.fn<typeof commands.openScript>().mockResolvedValue(undefined),
   };
 }

@@ -6,9 +6,10 @@ on or off, keep Remote Desktop monitor IDs correct, and enable or disable audio
 endpoints. Every layout becomes a generated script and a shortcut, so switching
 works with the app closed.
 
-**Status:** pre-alpha. The app opens, reads the connected monitors, and captures the
-arrangement Windows shows as a named layout with its summary. Switching is the next
-slice. The reference scripts under `samples/` do the job today by hand.
+**Status:** pre-alpha. The app opens, reads the connected monitors, captures the
+arrangement Windows shows as a named layout with its summary and schematic, and writes
+a self-contained switch script per layout. Running that switch from inside the app is
+the next slice. The reference scripts under `samples/` do the job today by hand.
 
 ## Why
 

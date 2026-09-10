@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { computed, onMounted } from 'vue';
-import { capturePreviewRows } from '@/domain/capture';
+import { capturePreviewMonitors, capturePreviewRows } from '@/domain/capture';
 import type { Layout } from '@/domain/generated/types';
 import { describeProbeAge } from '@/domain/time';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
+import ArrangementSchematic from './ArrangementSchematic.vue';
 import { useLayoutsStore } from './layouts.store';
 import { useSaveLayout } from './useSaveLayout';
 
@@ -21,6 +22,9 @@ const { name, check, canSave, conflict, error, saving, save, confirmReplace, can
 });
 
 const rows = computed(() => capturePreviewRows(inventory.value, aliases.value));
+// The picture shows what the capture will record, so it is drawn from the same
+// monitors the summary will hold, not from the raw probe.
+const schematicMonitors = computed(() => capturePreviewMonitors(inventory.value));
 
 const readAt = computed(() => (inventory.value ? describeProbeAge(inventory.value.probedAt) : 'reading from Windows'));
 const switchLabel = computed(() => `"Switch to ${check.value.name || 'Desk'}"`);
@@ -81,6 +85,11 @@ onMounted(() => {
           <span class="label">What will be captured</span>
           <span class="read-at">{{ probing ? 'reading from Windows' : readAt }}</span>
         </div>
+        <ArrangementSchematic
+          :monitors="schematicMonitors"
+          :aliases="aliases"
+          empty-text="No monitor is on"
+        />
         <div class="table">
           <div v-for="row in rows" :key="row.devicePath" class="row">
             <div class="who">

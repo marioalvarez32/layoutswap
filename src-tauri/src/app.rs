@@ -6,12 +6,14 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use crate::config::layouts::{self, CaptureOutcome, Layout};
+use crate::config::layouts::{
+    self, CaptureOutcome, Layout, ScriptRecord, ScriptState, ScriptStatus, SWITCH_SCRIPT_NAME,
+};
 use crate::config::store::ConfigStore;
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
 use crate::hardware::{self, Inventory};
-use crate::script::render;
+use crate::script::render::{self, TEMPLATE_VERSION};
 use crate::script::run::ScriptRunner;
 
 pub const PROBE_SCRIPT_NAME: &str = "probe.ps1";
@@ -50,12 +52,7 @@ impl App {
             path: path.clone(),
             source,
         })?;
-        fs::write(&path, render::render_probe(rendered_at).text).map_err(|source| {
-            AppError::ScriptWrite {
-                path: path.clone(),
-                source,
-            }
-        })?;
+        write_script(&path, &render::render_probe(rendered_at).text)?;
         Ok(path)
     }
 
@@ -111,9 +108,10 @@ impl App {
         self.store.update_window_size(size)
     }
 
-    /// Capture: the latest probe becomes a layout with the given name. With `replace_id`
-    /// the layout with that id is re-captured under the same id; without it, a name
-    /// another layout already has (compared without case) is reported, not overwritten.
+    /// Capture: the latest probe becomes a layout with the given name, and its switch
+    /// script is written. With `replace_id` the layout with that id is re-captured under
+    /// the same id; without it, a name another layout already has (compared without
+    /// case) is reported, not overwritten.
     pub fn capture(
         &self,
         name: &str,
@@ -135,8 +133,8 @@ impl App {
         }
 
         let summary = layouts::summarise(&inventory);
-        let captured_at = chrono::Local::now().to_rfc3339();
-        let layout = match replace_id {
+        let captured_at = now();
+        let (id, folder, index) = match replace_id {
             Some(id) => {
                 let index = config
                     .layouts
@@ -145,47 +143,144 @@ impl App {
                     .ok_or_else(|| AppError::LayoutNotFound { id: id.to_string() })?;
                 // A replace reaches here only under the same name (case aside), so the
                 // folder stays; renaming a layout is a later slice.
-                let folder = config.layouts[index].folder.clone();
-                let layout = Layout {
-                    id: id.to_string(),
-                    name,
-                    folder,
-                    captured_at,
-                    arrangement: inventory.arrangement.clone(),
-                    summary,
-                };
-                config.layouts[index] = layout.clone();
-                layout
+                (
+                    id.to_string(),
+                    config.layouts[index].folder.clone(),
+                    Some(index),
+                )
             }
             None => {
                 let id = layouts::new_id();
                 let taken: Vec<&str> = config.layouts.iter().map(|l| l.folder.as_str()).collect();
                 let folder = layouts::folder_name(&name, &id, &taken);
-                let layout = Layout {
-                    id,
-                    name,
-                    folder,
-                    captured_at,
-                    arrangement: inventory.arrangement.clone(),
-                    summary,
-                };
-                config.layouts.push(layout.clone());
-                layout
+                (id, folder, None)
             }
         };
-
-        self.ensure_layout_folder(&layout.folder)?;
+        let mut layout = Layout {
+            id,
+            name,
+            folder,
+            captured_at,
+            arrangement: inventory.arrangement.clone(),
+            summary,
+            script: None,
+        };
+        self.write_switch_script(&mut layout, &config)?;
+        match index {
+            Some(index) => config.layouts[index] = layout.clone(),
+            None => config.layouts.push(layout.clone()),
+        }
         self.store.save(&config)?;
-        Ok(CaptureOutcome::Saved { layout })
+        Ok(CaptureOutcome::Saved {
+            layout: Box::new(layout),
+        })
+    }
+
+    /// Rewrites one layout's script and clears its stale state.
+    pub fn regenerate_script(&self, layout_id: &str) -> Result<Layout, AppError> {
+        let mut config = self.store.load()?;
+        let index = config
+            .layouts
+            .iter()
+            .position(|l| l.id == layout_id)
+            .ok_or_else(|| AppError::LayoutNotFound {
+                id: layout_id.to_string(),
+            })?;
+        let mut layout = config.layouts[index].clone();
+        self.write_switch_script(&mut layout, &config)?;
+        config.layouts[index] = layout.clone();
+        self.store.save(&config)?;
+        Ok(layout)
+    }
+
+    /// On start: every layout whose script is missing or was rendered by an older
+    /// template gets a fresh one, so scripts never silently fall behind the app.
+    /// Returns the ids regenerated.
+    pub fn regenerate_stale_scripts(&self) -> Result<Vec<String>, AppError> {
+        let mut config = self.store.load()?;
+        let mut regenerated = Vec::new();
+        let snapshot = config.clone();
+        for layout in &mut config.layouts {
+            let exists = self.switch_script_path(layout).exists();
+            if layouts::script_state(layout, TEMPLATE_VERSION, exists) != ScriptState::Current {
+                self.write_switch_script(layout, &snapshot)?;
+                regenerated.push(layout.id.clone());
+            }
+        }
+        if !regenerated.is_empty() {
+            self.store.save(&config)?;
+        }
+        Ok(regenerated)
+    }
+
+    /// The script state of every layout, read from the config and the disk.
+    pub fn script_states(&self) -> Result<Vec<ScriptStatus>, AppError> {
+        let config = self.store.load()?;
+        Ok(config
+            .layouts
+            .iter()
+            .map(|layout| {
+                let path = self.switch_script_path(layout);
+                ScriptStatus {
+                    layout_id: layout.id.clone(),
+                    state: layouts::script_state(layout, TEMPLATE_VERSION, path.exists()),
+                    path: path.display().to_string(),
+                }
+            })
+            .collect())
+    }
+
+    /// Opens a layout's script with whatever Windows associates with `.ps1` files.
+    pub fn open_script(&self, layout_id: &str) -> Result<(), AppError> {
+        let config = self.store.load()?;
+        let layout = config
+            .layouts
+            .iter()
+            .find(|l| l.id == layout_id)
+            .ok_or_else(|| AppError::LayoutNotFound {
+                id: layout_id.to_string(),
+            })?;
+        let path = self.switch_script_path(layout);
+        if !path.exists() {
+            return Err(AppError::ScriptMissing { path });
+        }
+        open_with_default(&path)
+    }
+
+    pub fn switch_script_path(&self, layout: &Layout) -> PathBuf {
+        self.layouts_dir()
+            .join(&layout.folder)
+            .join(SWITCH_SCRIPT_NAME)
+    }
+
+    /// Renders the layout's switch script into its folder and records the render on
+    /// the layout. `config` supplies the aliases for the labels the script prints.
+    fn write_switch_script(&self, layout: &mut Layout, config: &Config) -> Result<(), AppError> {
+        let path = self.switch_script_path(layout);
+        let folder = path
+            .parent()
+            .expect("the script sits inside the layout folder");
+        fs::create_dir_all(folder).map_err(|source| AppError::LayoutFolder {
+            path: folder.to_path_buf(),
+            source,
+        })?;
+        let rendered_at = now();
+        let script = render::render_switch(
+            layout,
+            &config.aliases,
+            &self.root().display().to_string(),
+            &rendered_at,
+        );
+        write_script(&path, &script.text)?;
+        layout.script = Some(ScriptRecord {
+            template_version: TEMPLATE_VERSION,
+            rendered_at,
+        });
+        Ok(())
     }
 
     fn layouts_dir(&self) -> PathBuf {
         self.root().join(LAYOUTS_DIR_NAME)
-    }
-
-    fn ensure_layout_folder(&self, folder: &str) -> Result<(), AppError> {
-        let path = self.layouts_dir().join(folder);
-        fs::create_dir_all(&path).map_err(|source| AppError::LayoutFolder { path, source })
     }
 
     fn last_probe(&self) -> std::sync::MutexGuard<'_, Option<Inventory>> {
@@ -193,6 +288,47 @@ impl App {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
     }
+}
+
+/// Windows PowerShell 5.1 reads a `.ps1` without a byte-order mark as ANSI, so every
+/// script is written as UTF-8 with the mark; labels with a middle dot then print right.
+fn write_script(path: &Path, text: &str) -> Result<(), AppError> {
+    let mut bytes = Vec::with_capacity(text.len() + 3);
+    bytes.extend_from_slice(b"\xEF\xBB\xBF");
+    bytes.extend_from_slice(text.as_bytes());
+    fs::write(path, bytes).map_err(|source| AppError::ScriptWrite {
+        path: path.to_path_buf(),
+        source,
+    })
+}
+
+fn now() -> String {
+    chrono::Local::now().to_rfc3339()
+}
+
+#[cfg(not(test))]
+fn open_with_default(path: &Path) -> Result<(), AppError> {
+    // `start` goes through the shell association; the empty string is the window title.
+    std::process::Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|source| AppError::ScriptOpen {
+            path: path.to_path_buf(),
+            source,
+        })
+}
+
+#[cfg(test)]
+fn open_with_default(path: &Path) -> Result<(), AppError> {
+    OPENED.with(|o| o.borrow_mut().push(path.to_path_buf()));
+    Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    static OPENED: std::cell::RefCell<Vec<PathBuf>> = const { std::cell::RefCell::new(Vec::new()) };
 }
 
 #[cfg(test)]
@@ -215,7 +351,7 @@ mod tests {
 
     fn saved(outcome: CaptureOutcome) -> Layout {
         match outcome {
-            CaptureOutcome::Saved { layout } => layout,
+            CaptureOutcome::Saved { layout } => *layout,
             other => panic!("expected Saved, got {other:?}"),
         }
     }
@@ -279,7 +415,7 @@ mod tests {
     }
 
     #[test]
-    fn capture_stores_a_layout_with_its_summary_and_folder() {
+    fn capture_stores_a_layout_with_its_summary_and_writes_its_script() {
         let (_dir, app) = app();
         app.probe().unwrap();
         let layout = saved(app.capture("  Desk ", None).unwrap());
@@ -289,7 +425,24 @@ mod tests {
         assert_eq!(layout.summary.monitors.len(), 5);
         assert_eq!(layout.summary.monitors.iter().filter(|m| m.on).count(), 4);
         assert_eq!(layout.arrangement.source_adapters.len(), 4);
-        assert!(app.root().join("layouts").join("desk").is_dir());
+
+        let script = app.root().join("layouts").join("desk").join("switch.ps1");
+        let bytes = fs::read(&script).unwrap();
+        assert_eq!(
+            &bytes[..3],
+            b"\xEF\xBB\xBF",
+            "byte-order mark for PowerShell 5.1"
+        );
+        let text = fs::read_to_string(&script).unwrap();
+        assert!(text
+            .trim_start_matches('\u{feff}')
+            .starts_with("#Requires -Version 5.1"));
+        assert!(text.contains("switch to Desk"));
+        assert!(text.contains(&format!("$AppRoot       = '{}'", app.root().display())));
+        assert_eq!(
+            layout.script.as_ref().map(|s| s.template_version),
+            Some(TEMPLATE_VERSION)
+        );
 
         let config = app.load_config().unwrap();
         assert_eq!(config.layouts, vec![layout]);
@@ -312,15 +465,19 @@ mod tests {
     }
 
     #[test]
-    fn replace_keeps_the_id_and_folder_and_takes_the_new_capture() {
+    fn replace_keeps_the_id_and_folder_and_rewrites_the_script() {
         let (_dir, app) = app();
         app.probe().unwrap();
         let first = saved(app.capture("Desk", None).unwrap());
+        let first_script = fs::read_to_string(app.switch_script_path(&first)).unwrap();
 
         let replaced = saved(app.capture("desk", Some(&first.id)).unwrap());
         assert_eq!(replaced.id, first.id);
         assert_eq!(replaced.folder, "desk");
         assert_eq!(replaced.name, "desk");
+        let second_script = fs::read_to_string(app.switch_script_path(&replaced)).unwrap();
+        assert!(second_script.contains("switch to desk"));
+        assert_ne!(first_script, second_script);
         let config = app.load_config().unwrap();
         assert_eq!(config.layouts.len(), 1);
         assert_eq!(config.layouts[0].id, first.id);
@@ -342,7 +499,7 @@ mod tests {
         let b = saved(app.capture("Desk?", None).unwrap());
         assert_eq!(a.folder, "desk");
         assert_eq!(b.folder, format!("desk-{}", layouts::short_id(&b.id)));
-        assert!(app.root().join("layouts").join(&b.folder).is_dir());
+        assert!(app.switch_script_path(&b).exists());
     }
 
     #[test]
@@ -370,5 +527,100 @@ mod tests {
                 .unwrap();
             assert_eq!(summary.on, monitor.state == MonitorState::Active);
         }
+    }
+
+    #[test]
+    fn script_states_read_the_config_and_the_disk() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        let states = app.script_states().unwrap();
+        assert_eq!(states.len(), 1);
+        assert_eq!(states[0].layout_id, layout.id);
+        assert_eq!(states[0].state, ScriptState::Current);
+        assert!(states[0].path.ends_with("switch.ps1"));
+
+        fs::remove_file(app.switch_script_path(&layout)).unwrap();
+        assert_eq!(app.script_states().unwrap()[0].state, ScriptState::Missing);
+    }
+
+    #[test]
+    fn regenerate_rewrites_the_script_and_clears_the_stale_state() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        fs::remove_file(app.switch_script_path(&layout)).unwrap();
+
+        let fresh = app.regenerate_script(&layout.id).unwrap();
+        assert!(app.switch_script_path(&fresh).exists());
+        assert_eq!(app.script_states().unwrap()[0].state, ScriptState::Current);
+        assert!(fresh.script.unwrap().rendered_at >= layout.script.unwrap().rendered_at);
+    }
+
+    #[test]
+    fn scripts_from_an_older_template_are_regenerated_on_start() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let a = saved(app.capture("Desk", None).unwrap());
+        let b = saved(app.capture("Film", None).unwrap());
+
+        // Age one layout's script record as an older app would have left it.
+        let mut config = app.load_config().unwrap();
+        config.layouts[0].script = Some(ScriptRecord {
+            template_version: TEMPLATE_VERSION - 1,
+            rendered_at: "2020-01-01T00:00:00+00:00".into(),
+        });
+        app.store.save(&config).unwrap();
+        assert_eq!(app.script_states().unwrap()[0].state, ScriptState::Stale);
+
+        let regenerated = app.regenerate_stale_scripts().unwrap();
+        assert_eq!(regenerated, vec![a.id.clone()]);
+        let states = app.script_states().unwrap();
+        assert!(states.iter().all(|s| s.state == ScriptState::Current));
+        assert_eq!(states[1].layout_id, b.id);
+
+        assert!(app.regenerate_stale_scripts().unwrap().is_empty());
+    }
+
+    #[test]
+    fn open_script_opens_the_file_and_refuses_a_missing_one() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        app.open_script(&layout.id).unwrap();
+        let opened = OPENED.with(|o| o.borrow().clone());
+        assert!(opened.contains(&app.switch_script_path(&layout)));
+
+        fs::remove_file(app.switch_script_path(&layout)).unwrap();
+        assert!(matches!(
+            app.open_script(&layout.id).unwrap_err(),
+            AppError::ScriptMissing { .. }
+        ));
+        assert!(matches!(
+            app.open_script("nope").unwrap_err(),
+            AppError::LayoutNotFound { .. }
+        ));
+    }
+
+    #[test]
+    fn the_script_names_monitors_by_alias_or_by_name_and_connector_when_shared() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let mut config = app.load_config().unwrap();
+        config.aliases.insert(
+            r"\\?\DISPLAY#ACR0EC4#5&1a2b3c4d&0&UID8448#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}"
+                .into(),
+            "Side".into(),
+        );
+        app.store.save(&config).unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        let text = fs::read_to_string(app.switch_script_path(&layout)).unwrap();
+        assert!(text.contains("    'Side'"), "alias is used");
+        assert!(
+            text.contains("'MSI MP165 E6 · USB-C DisplayPort 1'"),
+            "{text}"
+        );
+        assert!(text.contains("'MSI MP165 E6 · USB-C DisplayPort 2'"));
+        assert!(text.contains("    'Built-in display'"));
     }
 }

@@ -2,8 +2,9 @@
 
 Windows utility that switches between saved monitor layouts by generating and running
 a PowerShell script per layout. Tauri 2 with a Rust backend, Vue 3 renderer,
-TypeScript strict, pnpm. Pre-alpha: the app opens, probes the monitors and captures
-the current arrangement as a layout; switch is not built yet.
+TypeScript strict, pnpm. Pre-alpha: the app opens, probes the monitors, captures the
+current arrangement as a layout and writes its switch script; running a switch from
+the app is not built yet.
 
 Commands are the scripts in `package.json`; the README lists them. Run `pnpm lint`,
 `pnpm typecheck`, `pnpm test` and `pnpm test:rust` before calling work done.

@@ -56,7 +56,11 @@ id: string, name: string,
 /**
  * The folder under `<app root>\layouts` holding the generated script and its log.
  */
-folder: string, capturedAt: string, arrangement: ArrangementBlob, summary: Summary, };
+folder: string, capturedAt: string, arrangement: ArrangementBlob, summary: Summary, 
+/**
+ * The generated switch script on disk, or null when none has been written yet.
+ */
+script: ScriptRecord | null, };
 
 /**
  * One physical monitor, identified by its device path (ADR-0005).
@@ -94,7 +98,38 @@ export type MonitorState = "Active" | "Available" | "Absent";
 
 export type Point = { x: number, y: number, };
 
+export type ProgressLine = { 
+/**
+ * One-based.
+ */
+step: number, of: number, status: StepStatus, 
+/**
+ * The step name, with the reason appended after a colon on a failure.
+ */
+text: string, };
+
+/**
+ * What the app knows about a layout's generated script.
+ */
+export type ScriptRecord = { 
+/**
+ * The template version it was rendered with.
+ */
+templateVersion: number, renderedAt: string, };
+
+/**
+ * Whether a layout's script can be trusted (CONTEXT.md: Stale).
+ */
+export type ScriptState = "current" | "stale" | "missing";
+
+/**
+ * A layout's script state with the path the app would open, as the detail shows it.
+ */
+export type ScriptStatus = { layoutId: string, state: ScriptState, path: string, };
+
 export type Size = { width: number, height: number, };
+
+export type StepStatus = "running" | "done" | "failed" | "skipped";
 
 /**
  * The readable description of a layout's arrangement, derived at capture.

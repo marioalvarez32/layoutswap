@@ -104,6 +104,16 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("Regenerate the script from the layout, then try again: {path} is not on disk.")]
+    ScriptMissing { path: PathBuf },
+
+    #[error("Open {path} yourself: Windows could not start the program for it ({source}).")]
+    ScriptOpen {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error(
         "Open layoutswap again and try once more: something inside the app failed ({detail})."
     )]

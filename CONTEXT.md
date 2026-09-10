@@ -36,6 +36,12 @@ The readable description of a layout's arrangement, derived at capture and never
 edited: each monitor's alias, position, size, refresh, rotation, scale and primary.
 _Avoid_: preview, details, metadata
 
+**Schematic**:
+The read-only picture of an arrangement: one scaled rectangle per on monitor, the
+primary marked, off monitors listed as chips beneath it. Drawn from a summary or a
+capture preview, never edited.
+_Avoid_: diagram, map, preview (that is the capture table), editor
+
 **Verify**:
 Reading the arrangement back after a switch and comparing it to the layout's
 summary. A switch is applied only when verify passes.

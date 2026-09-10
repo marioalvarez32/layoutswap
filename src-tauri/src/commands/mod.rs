@@ -4,15 +4,15 @@
 //! `Result<T, AppError>`. Everything worth testing lives behind that call.
 //! `src/tauri/commands.ts` is the only TypeScript that calls these by name.
 //!
-//! Commands that run a script are `async` and hop to a blocking thread so the window
-//! stays responsive while PowerShell runs.
+//! Commands that run a script or touch many files are `async` and hop to a blocking
+//! thread so the window stays responsive.
 
 use std::sync::Arc;
 
 use tauri::State;
 
 use crate::app::App;
-use crate::config::layouts::CaptureOutcome;
+use crate::config::layouts::{CaptureOutcome, Layout, ScriptStatus};
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
 use crate::hardware::Inventory;
@@ -46,6 +46,25 @@ pub async fn capture_layout(
 ) -> Result<CaptureOutcome, AppError> {
     let app = Arc::clone(&state.app);
     blocking(move || app.capture(&name, replace_id.as_deref())).await
+}
+
+#[tauri::command]
+pub fn script_states(state: State<'_, AppState>) -> Result<Vec<ScriptStatus>, AppError> {
+    state.app.script_states()
+}
+
+#[tauri::command]
+pub async fn regenerate_script(
+    state: State<'_, AppState>,
+    layout_id: String,
+) -> Result<Layout, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || app.regenerate_script(&layout_id)).await
+}
+
+#[tauri::command]
+pub fn open_script(state: State<'_, AppState>, layout_id: String) -> Result<(), AppError> {
+    state.app.open_script(&layout_id)
 }
 
 async fn blocking<T: Send + 'static>(

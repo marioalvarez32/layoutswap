@@ -34,6 +34,11 @@ describe('SaveLayoutPage', () => {
     expect(wrapper.text()).toContain('Arrangement is edited in Windows Settings > Display before saving.');
   });
 
+  it('draws the schematic above the preview', async () => {
+    const wrapper = await mountPage();
+    expect(wrapper.find('.capture svg.schematic').exists()).toBe(true);
+  });
+
   it('shows size, position and the primary marker for on monitors only', async () => {
     const wrapper = await mountPage();
     const rows = wrapper.findAll('.row');

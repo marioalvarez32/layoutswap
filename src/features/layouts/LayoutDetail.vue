@@ -3,7 +3,10 @@ import { computed } from 'vue';
 import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
 import { chipLabels, formatSpec, inLayoutHint, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
 import { describeCaptureTime } from '@/domain/time';
+import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
+import ArrangementSchematic from './ArrangementSchematic.vue';
+import { useLayoutScript } from './useLayoutScript';
 
 const props = defineProps<{
   layout: Layout;
@@ -11,6 +14,8 @@ const props = defineProps<{
   /** The latest probe, for each monitor's live state; null before the first probe. */
   inventory: Inventory | null;
 }>();
+
+const script = useLayoutScript(() => props.layout.id);
 
 type Tone = 'good' | 'warn' | 'crit' | 'mute';
 const TONES: Record<MonitorState, Tone> = { Active: 'good', Available: 'warn', Absent: 'crit' };
@@ -45,30 +50,55 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
 </script>
 
 <template>
-  <article class="detail">
+  <article class="layout-detail">
     <header class="header">
-      <h2>{{ layout.name }}</h2>
-      <p class="captured">
-        {{ describeCaptureTime(layout.capturedAt) }}
-      </p>
+      <div class="title">
+        <h2>{{ layout.name }}</h2>
+        <p class="captured">
+          {{ describeCaptureTime(layout.capturedAt) }}
+        </p>
+        <p v-if="script.indicator.value" class="script-line" :class="script.indicator.value.tone">
+          <span class="dot" aria-hidden="true" />
+          {{ script.indicator.value.text }}
+        </p>
+      </div>
+      <div class="actions">
+        <Button :disabled="script.busy.value" @click="script.open">
+          Open script
+        </Button>
+        <Button :disabled="script.busy.value" @click="script.regenerate">
+          Regenerate script
+        </Button>
+      </div>
     </header>
 
     <div class="body">
+      <p v-if="script.error.value" class="band crit" role="alert">
+        {{ script.error.value }}
+      </p>
+
       <section class="section">
         <div class="section-head">
           <h3>Arrangement</h3>
           <span class="muted">Read-only. Edit in Windows Settings &gt; Display, then save again.</span>
         </div>
         <div class="panel">
-          <ul class="spec-list">
-            <li v-for="m in onMonitors" :key="m.devicePath" class="spec-row">
-              <span class="spec-who">
-                <span class="spec-name">{{ m.shortName }}</span>
-                <span v-if="m.primary" class="primary">Primary</span>
-              </span>
-              <span class="data">{{ m.spec }}</span>
-            </li>
-          </ul>
+          <div class="arrangement">
+            <ArrangementSchematic
+              :monitors="layout.summary.monitors"
+              :aliases="aliases"
+              empty-text="Nothing on in this layout"
+            />
+            <ul class="spec-list">
+              <li v-for="m in onMonitors" :key="m.devicePath" class="spec-row">
+                <span class="spec-who">
+                  <span class="spec-name">{{ m.shortName }}</span>
+                  <span v-if="m.primary" class="primary">Primary</span>
+                </span>
+                <span class="data">{{ m.spec }}</span>
+              </li>
+            </ul>
+          </div>
           <div class="off-row">
             <span class="muted">Off in this layout:</span>
             <template v-if="offMonitors.length > 0">
@@ -107,7 +137,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
 </template>
 
 <style scoped>
-.detail {
+.layout-detail {
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -116,10 +146,62 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
 
 .header {
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-6);
   padding: var(--space-6) var(--space-7) var(--space-5);
   border-bottom: var(--hairline) solid var(--line);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-3);
+  flex: none;
+}
+
+.script-line {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.dot {
+  width: var(--dot);
+  height: var(--dot);
+  border-radius: var(--r-round);
+  flex: none;
+}
+
+.script-line.good .dot {
+  background: var(--good);
+}
+
+.script-line.warn .dot {
+  background: var(--warn);
+}
+
+.band {
+  margin: 0;
+  padding: var(--space-4);
+  border: var(--hairline) solid;
+  border-radius: var(--r);
+  font-size: var(--text-md);
+}
+
+.band.crit {
+  border-color: var(--crit);
+  background: var(--crit-soft);
+  color: var(--crit);
 }
 
 h2 {
@@ -192,9 +274,17 @@ ul {
   list-style: none;
 }
 
+.arrangement {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-6);
+}
+
 .spec-list {
   display: flex;
   flex-direction: column;
+  flex: 1;
+  min-width: 0;
 }
 
 .spec-row {
@@ -206,9 +296,8 @@ ul {
 }
 
 .spec-who {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .spec-name {
@@ -217,9 +306,11 @@ ul {
 }
 
 .primary {
+  margin-left: var(--space-2);
   font-size: var(--text-xs);
   font-weight: 500;
   color: var(--accent);
+  white-space: nowrap;
 }
 
 .data {

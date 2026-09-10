@@ -1,19 +1,56 @@
-import { mount } from '@vue/test-utils';
-import { describe, expect, it } from 'vitest';
+import { flushPromises, mount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Inventory } from '@/domain/generated/types';
+import { openScript, regenerateScript } from '@/tauri/commands';
 import { inventoryFixture, layoutFixture } from '@/test/fixtures';
+import { useLayoutsStore } from './layouts.store';
 import LayoutDetail from './LayoutDetail.vue';
+
+vi.mock('@/tauri/commands', async () => (await import('@/test/commands')).commandsMock());
 
 function mountDetail(inventory: Inventory | null = inventoryFixture(), aliases: Record<string, string> = {}) {
   return mount(LayoutDetail, { props: { layout: layoutFixture(), aliases, inventory } });
 }
 
 describe('LayoutDetail', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia());
+    const store = useLayoutsStore();
+    store.layouts = [layoutFixture()];
+    store.selectedId = 'layout-desk';
+    store.scriptStatuses = [{ layoutId: 'layout-desk', state: 'current', path: 'C:/x/switch.ps1' }];
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows the script state and offers Open script and Regenerate script', async () => {
+    const wrapper = mountDetail();
+    expect(wrapper.find('.script-line').text()).toBe('Script up to date');
+    expect(wrapper.find('.script-line').classes()).toContain('good');
+    const buttons = wrapper.findAll('.actions button').map((b) => b.text());
+    expect(buttons).toEqual(['Open script', 'Regenerate script']);
+
+    await wrapper.findAll('.actions button')[0]!.trigger('click');
+    await flushPromises();
+    expect(openScript).toHaveBeenCalledWith('layout-desk');
+    await wrapper.findAll('.actions button')[1]!.trigger('click');
+    await flushPromises();
+    expect(regenerateScript).toHaveBeenCalledWith('layout-desk');
+  });
+
   it('shows the name, when it was captured, and the read-only note', () => {
     const wrapper = mountDetail();
     expect(wrapper.find('h2').text()).toBe('Desk');
     expect(wrapper.text()).toContain('Captured 9 Sep at');
     expect(wrapper.text()).toContain('Edit in Windows Settings > Display, then save again.');
+  });
+
+  it('draws the schematic beside the summary table', () => {
+    const wrapper = mountDetail();
+    expect(wrapper.find('.arrangement svg.schematic').exists()).toBe(true);
   });
 
   it('lists the on monitors with their spec and marks the primary', () => {

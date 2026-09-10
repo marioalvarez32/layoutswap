@@ -34,8 +34,13 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|tauri_app| {
             let app = App::new(config::app_root()?, Arc::new(PowerShellRunner));
-            // The probe on disk always matches the running app: rewrite it every start.
+            // The probe on disk always matches the running app: rewrite it every start,
+            // and bring every layout's switch script up to this template.
             app.write_probe_script(&chrono::Local::now().to_rfc3339())?;
+            if let Err(error) = app.regenerate_stale_scripts() {
+                // The window still opens; the detail shows the script as stale.
+                eprintln!("layoutswap: could not regenerate stale scripts: {error}");
+            }
             // A config that fails to load still gets a window: the renderer calls
             // `load_config` on start and shows that error where the user can read it.
             let size = app.load_config().map(|c| c.window).unwrap_or_default();
@@ -57,7 +62,10 @@ pub fn run() {
             commands::load_config,
             commands::save_window_size,
             commands::probe,
-            commands::capture_layout
+            commands::capture_layout,
+            commands::script_states,
+            commands::regenerate_script,
+            commands::open_script
         ])
         .run(tauri::generate_context!())
         .expect("layoutswap failed to start");

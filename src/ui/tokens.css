@@ -39,6 +39,7 @@
   --r-sm: 3px;
   --r: 6px;
   --r-lg: 10px;
+  --r-round: 50%;
 
   /* Type: display, body, data (Q8) */
   --display: "Instrument Sans", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
@@ -46,6 +47,7 @@
   --data: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
 
   /* Type scale, one fixed set */
+  --text-2xs: 9px;
   --text-xs: 10.5px;
   --text-sm: 12px;
   --text-md: 13.5px;
@@ -71,6 +73,7 @@
   /* Lines and marks */
   --hairline: 1px;
   --mark-w: 2px;
+  --dot: 7px;
 
   /* Layout measures */
   --control-h: 44px;

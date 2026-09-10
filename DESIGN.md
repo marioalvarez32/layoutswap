@@ -98,6 +98,8 @@ centred, one radius on everything, emoji as section markers.
 | 2026-09-09 | The sidebar is a shared component (`Sidebar.dc.html`) with props for the selected item, hovered row, empty state and last probe time | turn 2 |
 | 2026-09-09 | Switch progress replaces the layout detail in the content area; each step carries a status chip (done, running, waiting, needs you, failed, skipped); Cancel is disabled once the arrangement apply starts | 2c |
 | 2026-09-09 | Q3, in-app half: a "needs you" step shows a warning band with the physical action first ("Press the input button on Ultrawide, or turn the console off.") and the seconds remaining | 2c |
+| 2026-09-10 | The layout detail header carries a script indicator under the capture time, a dot plus one line: "Script up to date" (good), or "Regenerate the script: ..." (warn) when stale or missing; the header actions for this slice are Open script and Regenerate script, with Open log and Switch arriving with their tickets | 1d, code |
+| 2026-09-10 | The schematic also sits above the capture preview on Save current layout, drawn from the monitors the capture will record, so the page shows the picture the layout detail will show after saving; an empty picture says "No monitor is on" | 1c, code |
 | 2026-09-09 | Audio inventory rows list which layouts touch each endpoint and how; Remote Desktop shows a match chip per connection file (IDs match, IDs stale) and the scheduled task state with the unlock trigger called out separately | 2a, 2b |
 
 ## Open design questions

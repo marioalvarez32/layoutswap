@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { inventoryFixture } from '@/test/fixtures';
-import { capturePreviewRows } from './capture';
+import { capturePreviewMonitors, capturePreviewRows } from './capture';
 
 describe('capturePreviewRows', () => {
   it('lists connected monitors, on for Active and off for Available, and drops Absent ones', () => {
@@ -27,6 +27,13 @@ describe('capturePreviewRows', () => {
   it('uses the alias fallback', () => {
     const rows = capturePreviewRows(inventoryFixture(), { 'path-acer': 'Side' });
     expect(rows.find((r) => r.devicePath === 'path-acer')).toMatchObject({ label: 'Side', detail: 'KG241Y X1' });
+  });
+
+  it('gives the schematic the same monitors, with off ones stripped of their position', () => {
+    const monitors = capturePreviewMonitors(inventoryFixture());
+    expect(monitors.map((m) => m.on)).toEqual([true, true, true, true, false]);
+    expect(monitors[4]).toMatchObject({ reportedName: 'VG34VQEL1A', position: null, size: null, primary: false });
+    expect(capturePreviewMonitors(null)).toEqual([]);
   });
 
   it('is empty before the first probe', () => {

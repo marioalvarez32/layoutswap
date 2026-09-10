@@ -31,6 +31,12 @@ impl ConfigStore {
         &self.path
     }
 
+    /// The app root the config file sits in; every other file the app writes lives
+    /// under it too.
+    pub fn root(&self) -> &Path {
+        self.path.parent().unwrap_or(Path::new("."))
+    }
+
     /// Defaults when the file does not exist; otherwise the file, migrated to the current
     /// schema version.
     pub fn load(&self) -> Result<Config, AppError> {

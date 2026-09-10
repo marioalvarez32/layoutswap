@@ -10,6 +10,18 @@ export type AppErrorPayload = { message: string,
 logPath: string | null, };
 
 /**
+ * The SetDisplayConfig path and mode arrays exactly as Windows returned them for the
+ * active monitors, base64-encoded, with the GPU device paths needed to remap the
+ * per-boot adapter identifiers at apply time.
+ */
+export type ArrangementBlob = { paths: string, modes: string, sourceAdapters: Array<string>, targetAdapters: Array<string>, modeAdapters: Array<string>, };
+
+/**
+ * What a capture command returns.
+ */
+export type CaptureOutcome = { "outcome": "saved", layout: Layout, } | { "outcome": "nameTaken", id: string, name: string, };
+
+/**
  * Everything layoutswap remembers between launches.
  */
 export type Config = { schemaVersion: number, 
@@ -20,7 +32,84 @@ window: WindowSize,
 /**
  * The user's alias per monitor, keyed by device path (ADR-0005).
  */
-aliases: { [key in string]: string }, };
+aliases: { [key in string]: string }, layouts: Array<Layout>, };
+
+/**
+ * What the probe found: every monitor Windows knows about and the arrangement of the
+ * active ones, as the raw display-config arrays needed to apply it again (ADR-0006).
+ */
+export type Inventory = { 
+/**
+ * When the probe ran, as the script's local ISO 8601 timestamp.
+ */
+probedAt: string, monitors: Array<Monitor>, arrangement: ArrangementBlob, };
+
+/**
+ * A named, saved arrangement (ADR-0006): the raw blob that gets applied and the
+ * derived summary the UI shows. The summary is never edited, so the two cannot drift.
+ */
+export type Layout = { 
+/**
+ * Stable for the life of the layout; renames and re-captures keep it.
+ */
+id: string, name: string, 
+/**
+ * The folder under `<app root>\layouts` holding the generated script and its log.
+ */
+folder: string, capturedAt: string, arrangement: ArrangementBlob, summary: Summary, };
+
+/**
+ * One physical monitor, identified by its device path (ADR-0005).
+ */
+export type Monitor = { devicePath: string, 
+/**
+ * The name the monitor reports, or a stand-in when it reports none.
+ */
+reportedName: string, 
+/**
+ * The GPU's friendly name, empty when Windows did not say.
+ */
+gpu: string, gpuDevicePath: string, 
+/**
+ * The physical connector, such as "DisplayPort 2" or "Built-in".
+ */
+connector: string, 
+/**
+ * The GDI name (`\\.\DISPLAY3`) while the monitor is Active, else null.
+ */
+gdiName: string | null, state: MonitorState, position: Point | null, size: Size | null, refreshHz: number | null, 
+/**
+ * Rotation in degrees clockwise: 0, 90, 180 or 270.
+ */
+rotation: number | null, 
+/**
+ * Windows scale, 100 for 100%.
+ */
+scalePercent: number | null, primary: boolean, };
+
+/**
+ * The glossary's three monitor states.
+ */
+export type MonitorState = "Active" | "Available" | "Absent";
+
+export type Point = { x: number, y: number, };
+
+export type Size = { width: number, height: number, };
+
+/**
+ * The readable description of a layout's arrangement, derived at capture.
+ */
+export type Summary = { 
+/**
+ * Every monitor connected at capture: Active ones on, Available ones off.
+ */
+monitors: Array<SummaryMonitor>, };
+
+export type SummaryMonitor = { devicePath: string, 
+/**
+ * The alias fallback: what to show when the alias map has no entry.
+ */
+reportedName: string, connector: string, on: boolean, position: Point | null, size: Size | null, refreshHz: number | null, rotation: number | null, scalePercent: number | null, primary: boolean, };
 
 /**
  * A window size in logical pixels.

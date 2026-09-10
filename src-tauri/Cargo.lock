@@ -1695,6 +1695,7 @@ dependencies = [
 name = "layoutswap"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "serde",
  "serde_json",
  "tauri",
@@ -1702,6 +1703,7 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.20",
  "ts-rs",
+ "uuid",
 ]
 
 [[package]]

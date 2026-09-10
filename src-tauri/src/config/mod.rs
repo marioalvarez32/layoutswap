@@ -5,6 +5,7 @@
 //! is machine-bound under `%LOCALAPPDATA%\layoutswap`. Export config is the way to move
 //! between machines.
 
+pub mod layouts;
 pub mod store;
 
 use std::collections::BTreeMap;
@@ -14,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
+use layouts::Layout;
 
 /// The schema version this build writes. Reading a newer version is an error; older
 /// versions are migrated forward in [`store::migrate`].
@@ -33,7 +35,7 @@ pub const MIN_WINDOW_SIZE: WindowSize = WindowSize {
 };
 
 /// Everything layoutswap remembers between launches.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export, export_to = "types.ts")]
 pub struct Config {
@@ -43,6 +45,8 @@ pub struct Config {
     /// The user's alias per monitor, keyed by device path (ADR-0005).
     #[serde(default)]
     pub aliases: BTreeMap<String, String>,
+    #[serde(default)]
+    pub layouts: Vec<Layout>,
 }
 
 impl Default for Config {
@@ -51,6 +55,7 @@ impl Default for Config {
             schema_version: SCHEMA_VERSION,
             window: DEFAULT_WINDOW_SIZE,
             aliases: BTreeMap::new(),
+            layouts: Vec::new(),
         }
     }
 }

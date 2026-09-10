@@ -77,6 +77,15 @@
   --row-h: 40px;
   --sidebar-w: 212px;
   --prose-w: 520px;
+  --form-w: 820px;
+
+  /* Table columns, from the canvas */
+  --col-size: 148px;
+  --col-position: 116px;
+  --col-primary: 96px;
+  --col-alias: 150px;
+  --col-hint: 300px;
+  --col-on-off: 60px;
 }
 
 @media (prefers-color-scheme: dark) {

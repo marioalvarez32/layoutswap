@@ -61,6 +61,53 @@ pub enum AppError {
         #[source]
         source: std::io::Error,
     },
+
+    #[error("Check that the folder of {path} is writable, then open layoutswap again ({source}).")]
+    ScriptWrite {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error(
+        "Check that no other program is changing the monitors, then try again: \
+         the probe exited with exit code {exit_code} ({stderr})."
+    )]
+    ProbeFailed {
+        exit_code: i32,
+        stderr: String,
+        /// `probe.log` in the app root, once the app has written the failure there.
+        log_path: Option<PathBuf>,
+    },
+
+    #[error(
+        "Update layoutswap: the probe reported something this version cannot read ({source})."
+    )]
+    ProbeUnreadable {
+        #[source]
+        source: serde_json::Error,
+    },
+
+    #[error("Wait for layoutswap to finish reading the monitors, then try again.")]
+    NoProbeYet,
+
+    #[error("{reason}")]
+    InvalidLayoutName { reason: String },
+
+    #[error("Pick the layout again from the sidebar: no layout has the id {id} any more.")]
+    LayoutNotFound { id: String },
+
+    #[error("Check that the folder {path} is writable, then try again ({source}).")]
+    LayoutFolder {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error(
+        "Open layoutswap again and try once more: something inside the app failed ({detail})."
+    )]
+    Internal { detail: String },
 }
 
 /// What the webview receives when a command fails.
@@ -75,9 +122,13 @@ pub struct AppErrorPayload {
 
 impl From<&AppError> for AppErrorPayload {
     fn from(error: &AppError) -> Self {
+        let log_path = match error {
+            AppError::ProbeFailed { log_path, .. } => log_path.clone(),
+            _ => None,
+        };
         AppErrorPayload {
             message: error.to_string(),
-            log_path: None,
+            log_path: log_path.map(|p| p.display().to_string()),
         }
     }
 }

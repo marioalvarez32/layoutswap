@@ -1,0 +1,5 @@
+# ts-rs writes the TypeScript bindings here when `cargo test` runs (see
+# `pnpm generate:types`). The path is relative to the repo root. They land in
+# `domain/` because they are the shared types the domain layer builds on.
+[env]
+TS_RS_EXPORT_DIR = { value = "src/domain/generated", relative = true }

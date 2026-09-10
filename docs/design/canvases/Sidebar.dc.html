@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<nav style="width:212px;height:100%;flex:none;box-sizing:border-box;display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:10px 8px;background:var(--surface-2);border-right:1px solid var(--line);font-family:var(--body)">
+  <div style="display:flex;flex-direction:column;gap:10px;min-height:0">
+    <button style="height:44px;width:100%;flex:none;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:13.5px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover);border-color:var(--accent-hover)" style-focus="outline:2px solid var(--focus);outline-offset:2px">Save current layout</button>
+    <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:10px 8px;font-size:12px;line-height:1.5;color:var(--ink-3)">No layouts yet</div>
+    </sc-if>
+    <div style="display:flex;flex-direction:column;gap:1px;overflow:auto;min-height:0">
+      <sc-for list="{{ rows }}" as="row" hint-placeholder-count="4">
+        <div style="display:flex;flex-direction:column;gap:2px;padding:7px 10px;border-radius:var(--r);background:{{ row.bg }};box-shadow:{{ row.mark }};cursor:pointer;min-height:44px;box-sizing:border-box" style-hover="background:var(--surface-3)" style-focus="outline:2px solid var(--focus);outline-offset:-2px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1;font-size:13.5px;font-weight:{{ row.weight }};color:{{ row.ink }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ row.name }}</span>
+            <span style="width:6px;height:6px;flex:none;border-radius:50%;background:{{ row.dot }}"></span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="flex:1;font-family:var(--data);font-size:10.5px;color:{{ row.subInk }}">{{ row.count }}</span>
+            <sc-if value="{{ row.showActions }}" hint-placeholder-val="{{ false }}">
+              <span style="display:flex;gap:8px">
+                <span style="font-size:10.5px;color:var(--ink-2);cursor:pointer" style-hover="color:var(--accent);text-decoration:underline">Duplicate</span>
+                <span style="font-size:10.5px;color:var(--ink-2);cursor:pointer" style-hover="color:var(--crit);text-decoration:underline">Delete</span>
+              </span>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:8px;flex:none;padding-top:10px;border-top:1px solid var(--line)">
+    <div style="display:flex;flex-direction:column;gap:1px">
+      <sc-for list="{{ pinned }}" as="p" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;height:40px;padding:0 10px;border-radius:var(--r);background:{{ p.bg }};box-shadow:{{ p.mark }};font-size:13px;font-weight:{{ p.weight }};color:{{ p.ink }};cursor:pointer" style-hover="background:var(--surface-3)" style-focus="outline:2px solid var(--focus);outline-offset:-2px">{{ p.name }}</div>
+      </sc-for>
+    </div>
+    <div style="padding:0 10px 2px;font-family:var(--data);font-size:10.5px;line-height:1.5;color:var(--ink-3)">Last probe<br>{{ probe }}</div>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:212,&quot;height&quot;:760},&quot;selected&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Console&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;hoverRow&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;empty&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;},&quot;probe&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;14:32 today&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const sel = this.props.selected ?? "Console";
+    const hover = this.props.hoverRow ?? "";
+    const isEmpty = this.props.empty ?? false;
+    const layouts = isEmpty ? [] : [
+      { name: "Desk", count: "3 on · 1 off", dot: "var(--good)" },
+      { name: "Console", count: "2 on · 2 off", dot: "var(--warn)" },
+      { name: "Film", count: "1 on · 3 off", dot: "var(--warn)" },
+      { name: "Meeting", count: "2 on · 2 off", dot: "var(--good)" },
+    ];
+    const on = (active) => ({
+      bg: active ? "var(--accent-soft)" : "transparent",
+      mark: active ? "inset 2px 0 0 var(--accent)" : "none",
+      ink: active ? "var(--accent)" : "var(--ink)",
+      weight: active ? "600" : "500",
+    });
+    const rows = layouts.map((l) => {
+      const a = on(l.name === sel);
+      return { ...l, ...a, subInk: l.name === sel ? "var(--accent)" : "var(--ink-3)", showActions: l.name === hover };
+    });
+    const pinned = [
+      { key: "monitors", name: "Monitors" },
+      { key: "audio", name: "Audio" },
+      { key: "rdp", name: "Remote Desktop" },
+      { key: "settings", name: "Settings" },
+    ].map((p) => ({ name: p.name, ...on(p.key === sel), ink: p.key === sel ? "var(--accent)" : "var(--ink-2)" }));
+    return { rows, pinned, isEmpty, false: false, probe: this.props.probe ?? "14:32 today" };
+  }
+}
+</script>
+</body>
+</html>

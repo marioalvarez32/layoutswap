@@ -1,0 +1,1239 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=Libre+Franklin:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:oklch(0.975 0.004 195); --surface:oklch(1 0 0); --surface-2:oklch(0.966 0.006 195); --surface-3:oklch(0.945 0.008 195);
+  --line:oklch(0.905 0.008 195); --line-strong:oklch(0.83 0.012 195);
+  --ink:oklch(0.245 0.015 235); --ink-2:oklch(0.47 0.013 235); --ink-3:oklch(0.50 0.011 235);
+  --accent:oklch(0.495 0.10 195); --accent-hover:oklch(0.44 0.10 195); --accent-ink:oklch(0.99 0.002 195); --accent-soft:oklch(0.955 0.028 195); --accent-line:oklch(0.80 0.06 195);
+  --good:oklch(0.50 0.11 150); --good-soft:oklch(0.945 0.045 150);
+  --warn:oklch(0.53 0.11 70); --warn-soft:oklch(0.955 0.055 80);
+  --crit:oklch(0.505 0.155 25); --crit-soft:oklch(0.955 0.045 25);
+  --focus:oklch(0.55 0.14 250);
+  --r-sm:3px; --r:6px; --r-lg:10px;
+  --display:"Instrument Sans","Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;
+  --body:"Libre Franklin","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
+  --data:"JetBrains Mono","Cascadia Mono",ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:oklch(0.185 0.010 235); --surface:oklch(0.225 0.011 235); --surface-2:oklch(0.255 0.012 235); --surface-3:oklch(0.295 0.013 235);
+    --line:oklch(0.335 0.013 235); --line-strong:oklch(0.44 0.015 235);
+    --ink:oklch(0.955 0.005 195); --ink-2:oklch(0.775 0.010 220); --ink-3:oklch(0.685 0.012 225);
+    --accent:oklch(0.70 0.10 195); --accent-hover:oklch(0.78 0.10 195); --accent-ink:oklch(0.19 0.02 195); --accent-soft:oklch(0.315 0.045 195); --accent-line:oklch(0.45 0.06 195);
+    --good:oklch(0.72 0.12 150); --good-soft:oklch(0.30 0.05 150);
+    --warn:oklch(0.78 0.12 80); --warn-soft:oklch(0.32 0.055 75);
+    --crit:oklch(0.68 0.15 25); --crit-soft:oklch(0.32 0.06 25);
+    --focus:oklch(0.72 0.13 250);
+  }
+}
+[data-theme="dark"]{
+  --ground:oklch(0.185 0.010 235); --surface:oklch(0.225 0.011 235); --surface-2:oklch(0.255 0.012 235); --surface-3:oklch(0.295 0.013 235);
+  --line:oklch(0.335 0.013 235); --line-strong:oklch(0.44 0.015 235);
+  --ink:oklch(0.955 0.005 195); --ink-2:oklch(0.775 0.010 220); --ink-3:oklch(0.685 0.012 225);
+  --accent:oklch(0.70 0.10 195); --accent-hover:oklch(0.78 0.10 195); --accent-ink:oklch(0.19 0.02 195); --accent-soft:oklch(0.315 0.045 195); --accent-line:oklch(0.45 0.06 195);
+  --good:oklch(0.72 0.12 150); --good-soft:oklch(0.30 0.05 150);
+  --warn:oklch(0.78 0.12 80); --warn-soft:oklch(0.32 0.055 75);
+  --crit:oklch(0.68 0.15 25); --crit-soft:oklch(0.32 0.06 25);
+  --focus:oklch(0.72 0.13 250);
+}
+body{margin:0;background:oklch(0.93 0.006 195);color:var(--ink);font-family:var(--body);}
+a{color:var(--accent);text-decoration:none}
+a:hover{color:var(--accent-hover);text-decoration:underline}
+</style>
+</helmet>
+
+<section style="display:flex;flex-direction:column;gap:64px;padding:56px 64px 96px;font-family:var(--body)">
+
+  <header style="display:flex;flex-direction:column;gap:10px;max-width:820px">
+    <div style="font-family:var(--data);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.50 0.02 235)">Turn 2 · layoutswap v1 settings window</div>
+    <h1 style="margin:0;font-family:var(--display);font-size:34px;font-weight:600;letter-spacing:-0.02em;color:oklch(0.24 0.015 235)">The sidebar is the layouts list</h1>
+    <p style="margin:0;font-size:15px;line-height:1.55;color:oklch(0.44 0.013 235);text-wrap:pretty">The five equal nav items are gone: the sidebar now holds Save current layout, one row per layout, and the four inventory screens pinned below a rule. <a href="#1a">1a</a> is the merged shell at the 1280&#215;860 default; <a href="#1d">1d</a> is the full detail column, <a href="#2e">2e</a> the expanded step rows. New this turn: <a href="#2a">2a</a> Audio, <a href="#2b">2b</a> Remote Desktop, <a href="#2c">2c</a> switch progress, <a href="#2d">2d</a> dark theme.</p>
+  </header>
+
+  <div style="display:flex;flex-direction:column;gap:56px">
+
+    <!-- 1a Layouts list -->
+    <div id="1a" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1a</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Layouts and detail, merged</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">At the 1280&#215;860 default &#183; Console selected, Film hovered &#183; the detail column continues below the fold, see <a href="#1d">1d</a></span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:stretch;height:40px;flex:none;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:9px;padding:0 12px">
+            <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;font-weight:500;color:var(--accent-ink)">L</div>
+            <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex">
+            <div style="width:46px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--ink-2)" style-hover="background:var(--surface-3)">&#9472;</div>
+            <div style="width:46px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--ink-2)" style-hover="background:var(--surface-3)">&#9633;</div>
+            <div style="width:46px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--ink-2)" style-hover="background:var(--crit);color:oklch(0.99 0 0)">&#10005;</div>
+          </div>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="Console" hover-row="Film" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:20px 28px 16px;border-bottom:1px solid var(--line);background:var(--surface)">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Console</h2>
+                <div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span><span style="font-size:12.5px;color:var(--ink-2)">Shortcut missing</span></div>
+              </div>
+              <div style="display:flex;gap:10px;flex:none">
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Open log</button>
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Regenerate script</button>
+                <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Switch to Console</button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:20px 28px;display:flex;flex-direction:column;gap:22px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between">
+                  <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Arrangement</h3>
+                  <span style="font-size:12px;color:var(--ink-3)">Read-only. Edit in Windows Settings &gt; Display, then save again.</span>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;border:1px solid var(--line);border-radius:var(--r);padding:14px;background:var(--surface-2)">
+                  <div style="display:flex;gap:18px">
+                    <div style="position:relative;width:264px;height:140px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm)">
+                      <div style="position:absolute;left:14px;top:28px;width:136px;height:58px;border:1.5px solid var(--accent);border-radius:2px;background:var(--accent-soft);display:flex;flex-direction:column;justify-content:center;padding:0 8px">
+                        <span style="font-size:11px;font-weight:600;color:var(--accent)">Ultrawide</span>
+                        <span style="font-family:var(--data);font-size:9px;color:var(--accent)">primary &#183; 3440&#215;1440</span>
+                      </div>
+                      <div style="position:absolute;left:156px;top:36px;width:52px;height:42px;border:1.5px solid var(--line-strong);border-radius:2px;background:var(--surface-3);display:flex;flex-direction:column;justify-content:center;padding:0 6px">
+                        <span style="font-size:10px;font-weight:600;color:var(--ink-2)">Side</span>
+                        <span style="font-family:var(--data);font-size:8.5px;color:var(--ink-2)">1920&#215;1080</span>
+                      </div>
+                    </div>
+                    <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+                      <sc-for list="{{ arrangement }}" as="a" hint-placeholder-count="2">
+                        <div style="display:grid;grid-template-columns:130px 1fr;gap:12px;padding:8px 0;border-bottom:1px solid var(--line)">
+                          <div style="display:flex;align-items:center;gap:8px">
+                            <span style="font-size:13px;font-weight:600;color:var(--ink)">{{ a.alias }}</span>
+                            <span style="font-size:11px;color:var(--accent);font-weight:500">{{ a.primary }}</span>
+                          </div>
+                          <div style="font-family:var(--data);font-size:11.5px;color:var(--ink-2)">{{ a.spec }}</div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    <span style="font-size:12px;color:var(--ink-2)">Off in this layout:</span>
+                    <span style="display:flex;align-items:center;height:26px;padding:0 9px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-family:var(--data);font-size:11px;color:var(--ink-2)">Portrait</span>
+                    <span style="display:flex;align-items:center;height:26px;padding:0 9px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-family:var(--data);font-size:11px;color:var(--ink-2)">TV</span>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Monitors in this layout</h3>
+                <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                  <sc-for list="{{ inLayout }}" as="m" hint-placeholder-count="4">
+                    <div style="display:grid;grid-template-columns:1fr 300px 108px;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)">
+                      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                        <span style="font-size:13.5px;font-weight:500;color:var(--ink)">{{ m.alias }}</span>
+                        <span style="font-family:var(--data);font-size:11px;padding:2px 6px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}</span>
+                      </div>
+                      <div style="font-size:12px;color:var(--ink-2);text-wrap:pretty">{{ m.hint }}</div>
+                      <div style="display:flex;justify-content:flex-end">
+                        <div style="display:flex;height:32px;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;font-size:12px">
+                          <div style="display:flex;align-items:center;padding:0 11px;background:{{ m.onBg }};color:{{ m.onInk }};font-weight:500">On</div>
+                          <div style="display:flex;align-items:center;padding:0 11px;background:{{ m.offBg }};color:{{ m.offInk }};border-left:1px solid var(--line-strong);font-weight:500">Off</div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Steps</h3>
+                <span style="font-size:12px;color:var(--ink-3)">Four steps &#183; continues below</span>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1b empty state -->
+    <div id="1b" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1b</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Layouts &#183; first run</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">One sentence, then the primary action</span>
+      </div>
+      <div style="width:1280px;height:520px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" empty="{{ true }}" probe="not run yet" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px">
+            <div style="display:flex;flex-direction:column;align-items:flex-start;gap:18px;max-width:520px">
+              <div style="display:flex;gap:6px">
+                <div style="width:96px;height:58px;border:1px solid var(--accent-line);border-radius:var(--r-sm);background:var(--accent-soft)"></div>
+                <div style="width:58px;height:58px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface-2)"></div>
+                <div style="width:40px;height:58px;border:1px dashed var(--line-strong);border-radius:var(--r-sm)"></div>
+              </div>
+              <h2 style="margin:0;font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-0.01em">No layouts yet</h2>
+              <p style="margin:0;font-size:15px;line-height:1.6;color:var(--ink-2);text-wrap:pretty">A layout is the arrangement of monitors Windows is showing right now, saved with the steps a switch needs: input sources, audio endpoints and Remote Desktop monitor IDs.</p>
+              <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Save current layout</button>
+              <p style="margin:0;font-size:13px;color:var(--ink-3)">Arrange your monitors in Windows Settings &gt; Display first.</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1c Save current layout -->
+    <div id="1c" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1c</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Save current layout</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Live preview of what will be captured</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;flex-direction:column;gap:4px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+            <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Save current layout</h2>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:24px 28px;display:flex;flex-direction:column;gap:24px;max-width:820px">
+            <label style="display:flex;flex-direction:column;gap:7px">
+              <span style="font-size:13px;font-weight:600;color:var(--ink)">Name</span>
+              <input value="Console" style="height:44px;padding:0 12px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:15px;color:var(--ink)" style-focus="outline:2px solid var(--focus);outline-offset:1px;border-color:var(--accent)">
+              <span style="font-size:12px;color:var(--ink-3)">Used on the shortcut and in "Switch to Console".</span>
+            </label>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <span style="font-size:13px;font-weight:600">What will be captured</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">read from Windows just now</span>
+              </div>
+              <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                <sc-for list="{{ capture }}" as="m" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:1fr 148px 116px 96px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);background:var(--surface)">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                      <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 6px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}</span>
+                      <span style="font-size:14px;font-weight:500;color:var(--ink)">{{ m.alias }}</span>
+                      <span style="font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ m.name }}</span>
+                    </div>
+                    <div style="font-family:var(--data);font-size:12px;color:var(--ink-2)">{{ m.size }}</div>
+                    <div style="font-family:var(--data);font-size:12px;color:var(--ink-2)">{{ m.pos }}</div>
+                    <div style="font-size:12px;color:var(--accent);font-weight:500">{{ m.primary }}</div>
+                  </div>
+                </sc-for>
+                <div style="padding:11px 14px;background:var(--surface-2);font-size:12.5px;color:var(--ink-2)">Arrangement is edited in Windows Settings &gt; Display before saving.</div>
+              </div>
+            </div>
+            <label style="display:flex;align-items:flex-start;gap:11px;min-height:44px;padding:10px 0;cursor:pointer">
+              <input type="checkbox" checked="{{ createShortcut }}" style="width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)">
+              <span style="display:flex;flex-direction:column;gap:3px">
+                <span style="font-size:14px;font-weight:500">Create a shortcut now</span>
+                <span style="font-size:12.5px;color:var(--ink-2)">{{ shortcutHint }}</span>
+              </span>
+            </label>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:10px;padding:16px 28px;border-top:1px solid var(--line);background:var(--surface-2)">
+            <button style="height:44px;padding:0 18px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer" style-hover="border-color:var(--ink-3)">Cancel</button>
+            <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Save layout</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1d Layout detail -->
+    <div id="1d" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1d</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Layout detail &#183; Console</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">The content column at full height, sidebar omitted &#183; step rows collapsed, see <a href="#2e">2e</a> expanded</span>
+      </div>
+      <div style="width:1068px;height:1820px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="flex:1;display:flex;flex-direction:column;min-height:0">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Console</h2>
+              <div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span><span style="font-size:12.5px;color:var(--ink-2)">Shortcut missing</span></div>
+            </div>
+            <div style="display:flex;gap:10px;flex:none">
+              <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Open log</button>
+              <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Regenerate script</button>
+              <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Switch to Console</button>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;overflow:auto;padding:24px 28px 28px;display:flex;flex-direction:column;gap:26px">
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Arrangement</h3>
+                <span style="font-size:12px;color:var(--ink-3)">Read-only. Edit in Windows Settings &gt; Display, then save again.</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px;border:1px solid var(--line);border-radius:var(--r);padding:16px;background:var(--surface-2)">
+                <div style="display:flex;gap:20px">
+                  <div style="position:relative;width:300px;height:172px;flex:none;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-sm)">
+                    <div style="position:absolute;left:16px;top:44px;width:150px;height:64px;border:1.5px solid var(--accent);border-radius:2px;background:var(--accent-soft);display:flex;flex-direction:column;justify-content:center;padding:0 8px">
+                      <span style="font-size:11.5px;font-weight:600;color:var(--accent)">Ultrawide</span>
+                      <span style="font-family:var(--data);font-size:9.5px;color:var(--accent)">primary &#183; 3440&#215;1440</span>
+                    </div>
+                    <div style="position:absolute;left:172px;top:54px;width:56px;height:44px;border:1.5px solid var(--line-strong);border-radius:2px;background:var(--surface-3);display:flex;flex-direction:column;justify-content:center;padding:0 6px">
+                      <span style="font-size:10.5px;font-weight:600;color:var(--ink-2)">Side</span>
+                      <span style="font-family:var(--data);font-size:9px;color:var(--ink-2)">1920&#215;1080</span>
+                    </div>
+                  </div>
+                  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+                    <sc-for list="{{ arrangement }}" as="a" hint-placeholder-count="3">
+                      <div style="display:grid;grid-template-columns:150px 1fr;gap:14px;padding:9px 0;border-bottom:1px solid var(--line)">
+                        <div style="display:flex;align-items:center;gap:8px">
+                          <span style="font-size:13.5px;font-weight:600;color:var(--ink)">{{ a.alias }}</span>
+                          <span style="font-size:11px;color:var(--accent);font-weight:500">{{ a.primary }}</span>
+                        </div>
+                        <div style="font-family:var(--data);font-size:12px;color:var(--ink-2)">{{ a.spec }}</div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                  <span style="font-size:12.5px;color:var(--ink-2)">Off in this layout:</span>
+                  <span style="display:flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-family:var(--data);font-size:11.5px;color:var(--ink-2)">Portrait</span>
+                  <span style="display:flex;align-items:center;height:28px;padding:0 10px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--surface);font-family:var(--data);font-size:11.5px;color:var(--ink-2)">TV</span>
+                  <span style="font-size:12px;color:var(--ink-3)">An off monitor has no position, so it is not drawn.</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Monitors in this layout</h3>
+              <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                <sc-for list="{{ inLayout }}" as="m" hint-placeholder-count="4">
+                  <div style="display:grid;grid-template-columns:1fr 300px 108px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)">
+                    <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                      <span style="font-size:14px;font-weight:500;color:var(--ink)">{{ m.alias }}</span>
+                      <span style="font-family:var(--data);font-size:11px;padding:2px 6px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}</span>
+                    </div>
+                    <div style="font-size:12.5px;color:var(--ink-2);text-wrap:pretty">{{ m.hint }}</div>
+                    <div style="display:flex;justify-content:flex-end">
+                      <div style="display:flex;height:34px;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;font-size:12.5px">
+                        <div style="display:flex;align-items:center;padding:0 12px;background:{{ m.onBg }};color:{{ m.onInk }};font-weight:500">On</div>
+                        <div style="display:flex;align-items:center;padding:0 12px;background:{{ m.offBg }};color:{{ m.offInk }};border-left:1px solid var(--line-strong);font-weight:500">Off</div>
+                      </div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;align-items:baseline;justify-content:space-between">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Steps</h3>
+                <span style="font-size:12px;color:var(--ink-3)">Drag to reorder</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:14px">
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Before the arrangement changes</div>
+                  <sc-for list="{{ stepsBefore }}" as="s" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)" style-hover="border-color:var(--line-strong)">
+                      <span style="font-family:var(--data);font-size:13px;color:var(--ink-3);cursor:grab">&#8801;</span>
+                      <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);width:14px">{{ s.n }}</span>
+                      <span style="flex:1;font-size:14px;color:var(--ink)">{{ s.text }}</span>
+                      <span style="font-family:var(--data);font-size:11px;padding:3px 8px;border-radius:var(--r-sm);background:var(--surface-3);color:var(--ink-2)">{{ s.wait }}</span>
+                      <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-3);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">After the arrangement changes</div>
+                  <sc-for list="{{ stepsAfter }}" as="s" hint-placeholder-count="2">
+                    <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)" style-hover="border-color:var(--line-strong)">
+                      <span style="font-family:var(--data);font-size:13px;color:var(--ink-3);cursor:grab">&#8801;</span>
+                      <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);width:14px">{{ s.n }}</span>
+                      <span style="flex:1;font-size:14px;color:var(--ink)">{{ s.text }}</span>
+                      <span style="font-family:var(--data);font-size:11px;padding:3px 8px;border-radius:var(--r-sm);background:var(--surface-3);color:var(--ink-2)">{{ s.wait }}</span>
+                      <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-3);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;gap:10px">
+                  <button style="height:44px;padding:0 14px;border:1px dashed var(--line-strong);border-radius:var(--r);background:transparent;color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Add step before</button>
+                  <button style="height:44px;padding:0 14px;border:1px dashed var(--line-strong);border-radius:var(--r);background:transparent;color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Add step after</button>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Audio</h3>
+                <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                  <sc-for list="{{ audio }}" as="e" hint-placeholder-count="3">
+                    <div style="display:flex;flex-direction:column;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)">
+                      <div style="display:flex;align-items:center;gap:9px;min-width:0">
+                        <span style="font-family:var(--data);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">{{ e.flow }}</span>
+                        <span style="font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.name }}</span>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+                        <div style="display:flex;height:34px;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;font-size:12.5px;width:fit-content">
+                          <div style="display:flex;align-items:center;padding:0 12px;background:{{ e.enBg }};color:{{ e.enInk }};cursor:pointer">Enable</div>
+                          <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--line-strong);background:{{ e.disBg }};color:{{ e.disInk }};cursor:pointer">Disable</div>
+                          <div style="display:flex;align-items:center;padding:0 12px;border-left:1px solid var(--line-strong);background:{{ e.leaveBg }};color:{{ e.leaveInk }};cursor:pointer">Leave alone</div>
+                        </div>
+                        <sc-if value="{{ e.hasRadio }}" hint-placeholder-val="{{ true }}">
+                          <label style="display:flex;align-items:center;gap:8px;min-height:34px;cursor:{{ e.radioCursor }}">
+                            <input type="radio" name="defaultout" checked="{{ e.isDefault }}" disabled="{{ e.radioOff }}" style="width:16px;height:16px;accent-color:var(--accent)">
+                            <span style="font-size:12.5px;color:{{ e.radioInk }}">Default output</span>
+                          </label>
+                        </sc-if>
+                      </div>
+                      <sc-if value="{{ e.radioOff }}" hint-placeholder-val="{{ false }}">
+                        <div style="font-size:12px;color:var(--ink-3)">Set this endpoint to Enable to make it the default output.</div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:20px">
+                <div style="display:flex;flex-direction:column;gap:10px">
+                  <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Shortcut</h3>
+                  <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--warn);border-radius:var(--r);background:var(--warn-soft)">
+                    <div style="display:flex;align-items:center;gap:9px">
+                      <span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span>
+                      <span style="font-size:13.5px;font-weight:600;color:var(--ink)">Shortcut missing</span>
+                    </div>
+                    <p style="margin:0;font-size:12.5px;color:var(--ink-2)">This layout can't be switched with the app closed until a shortcut exists.</p>
+                    <div style="display:flex;align-items:center;gap:12px">
+                      <button style="height:44px;padding:0 14px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer">Create shortcut</button>
+                      <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">Desktop</span>
+                    </div>
+                    <label style="display:flex;align-items:center;gap:10px;min-height:44px;cursor:pointer">
+                      <input type="checkbox" style="width:18px;height:18px;accent-color:var(--accent)">
+                      <span style="font-size:12.5px;color:var(--ink-2)">Keep the console window open after the run</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">If the switch fails</h3>
+              <div style="display:flex;gap:10px">
+                <label style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft);cursor:pointer">
+                  <input type="radio" checked="{{ true }}" name="fallback" style="width:16px;height:16px;accent-color:var(--accent)">
+                  <span style="font-size:13.5px;font-weight:500;color:var(--ink)">Fall back to Windows Extend</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);cursor:pointer">
+                  <input type="radio" name="fallback" style="width:16px;height:16px;accent-color:var(--accent)">
+                  <span style="font-size:13.5px;color:var(--ink-2)">Stop and explain</span>
+                </label>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);cursor:pointer">
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="font-size:11px;color:var(--ink-3)">&#9654;</span>
+                <span style="font-size:13.5px;font-weight:600">Advanced</span>
+                <span style="font-size:12.5px;color:var(--ink-3)">Drop wait 5 s &#183; Available wait 120 s &#183; RDP refresh 7 tries, 15 s apart</span>
+              </div>
+              <span style="font-size:12px;color:var(--accent)">Show</span>
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 28px;border-top:1px solid var(--line);background:var(--surface-2)">
+            <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Open script</button>
+            <div style="display:flex;gap:10px">
+              <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer">Discard changes</button>
+              <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer">Save</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2e steps expanded -->
+    <div id="2e" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">2e</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Steps, one row of each kind expanded</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">The sentence becomes inline controls and still reads left to right</span>
+      </div>
+      <div style="width:1012px;display:flex;flex-direction:column;gap:14px;padding:20px 24px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between">
+          <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Steps</h3>
+          <span style="font-size:12px;color:var(--ink-3)">Drag to reorder &#183; click a row to expand</span>
+        </div>
+
+        <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Before the arrangement changes</div>
+
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft)">
+          <span style="font-family:var(--data);font-size:13px;color:var(--ink-2);cursor:grab">&#8801;</span>
+          <span style="font-family:var(--data);font-size:11px;color:var(--ink-2);width:14px">1</span>
+          <span style="font-size:14px;color:var(--ink)">Send</span>
+          <select style="height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:13.5px;color:var(--ink)">
+            <option>HDMI 1</option><option>HDMI 2</option><option>DisplayPort</option><option>USB-C</option>
+          </select>
+          <span style="font-size:14px;color:var(--ink)">to</span>
+          <select style="height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:13.5px;color:var(--ink)">
+            <option>Ultrawide</option><option>Side</option><option>Portrait</option><option>TV</option>
+          </select>
+          <span style="width:1px;height:26px;background:var(--accent-line)"></span>
+          <select style="height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:13.5px;color:var(--ink)">
+            <option>no wait</option><option>until Ultrawide drops</option><option selected="{{ true }}">until Ultrawide is Available</option>
+          </select>
+          <span style="font-size:14px;color:var(--ink)">, up to</span>
+          <input value="120" style="width:56px;height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--data);font-size:13px;color:var(--ink);text-align:right" style-focus="outline:2px solid var(--focus);outline-offset:1px">
+          <span style="font-size:14px;color:var(--ink)">s</span>
+          <span style="flex:1"></span>
+          <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-2);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft)">
+          <span style="font-family:var(--data);font-size:13px;color:var(--ink-2);cursor:grab">&#8801;</span>
+          <span style="font-family:var(--data);font-size:11px;color:var(--ink-2);width:14px">2</span>
+          <span style="font-size:14px;color:var(--ink)">Wait</span>
+          <input value="3" style="width:56px;height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--data);font-size:13px;color:var(--ink);text-align:right" style-focus="outline:2px solid var(--focus);outline-offset:1px">
+          <span style="font-size:14px;color:var(--ink)">seconds</span>
+          <span style="flex:1"></span>
+          <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-2);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+        </div>
+
+        <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">After the arrangement changes</div>
+
+        <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)">
+          <span style="font-family:var(--data);font-size:13px;color:var(--ink-3);cursor:grab">&#8801;</span>
+          <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);width:14px">3</span>
+          <span style="flex:1;font-size:14px;color:var(--ink)">Send DisplayPort to Side</span>
+          <span style="font-family:var(--data);font-size:11px;padding:3px 8px;border-radius:var(--r-sm);background:var(--surface-3);color:var(--ink-2)">Wait until Side drops</span>
+          <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-3);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft)">
+          <span style="font-family:var(--data);font-size:13px;color:var(--ink-2);cursor:grab">&#8801;</span>
+          <span style="font-family:var(--data);font-size:11px;color:var(--ink-2);width:14px">4</span>
+          <span style="flex:1;font-size:14px;color:var(--ink)">Refresh RDP profiles</span>
+          <span style="font-size:12.5px;color:var(--ink-2)">Retries live in Advanced</span>
+          <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-2);cursor:pointer" style-hover="background:var(--crit-soft);color:var(--crit)">&#10005;</span>
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button style="height:44px;padding:0 14px;border:1px dashed var(--line-strong);border-radius:var(--r);background:transparent;color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Add step before</button>
+          <button style="height:44px;padding:0 14px;border:1px dashed var(--line-strong);border-radius:var(--r);background:transparent;color:var(--ink-2);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Add step after</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1f Monitors -->
+    <div id="1f" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1f</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Monitors</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Active, Available not Active, Absent, and one without DDC-CI (Q2)</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="monitors" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Monitors</h2>
+                <p style="margin:0;font-size:13px;color:var(--ink-2)">Four monitors connected. Aliases are yours; every other column is read from the hardware.</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;flex:none">
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">Last probe 14:32</span>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;font-weight:500;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Refresh</button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+              <sc-for list="{{ monitors }}" as="m" hint-placeholder-count="4">
+                <div style="display:flex;flex-direction:column;gap:10px;padding:16px 28px;border-bottom:1px solid var(--line)">
+                  <div style="display:flex;align-items:center;gap:12px">
+                    <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}</span>
+                    <span style="display:flex;align-items:center;gap:7px;padding:4px 8px;border:1px dashed var(--line-strong);border-radius:var(--r-sm)" style-hover="border-color:var(--accent)">
+                      <span style="font-size:15px;font-weight:600;color:var(--ink)">{{ m.alias }}</span>
+                      <span style="font-size:10.5px;color:var(--ink-3)">edit</span>
+                    </span>
+                    <span style="font-size:13px;color:var(--ink-2)">{{ m.name }}</span>
+                    <span style="flex:1"></span>
+                    <span style="font-size:12.5px;color:var(--ink-2)">{{ m.note }}</span>
+                  </div>
+                  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;font-family:var(--data);font-size:11.5px;color:var(--ink-2)">
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">GPU</span>{{ m.gpu }}</div>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Connector</span>{{ m.connector }}</div>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Position</span>{{ m.pos }}</div>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Size</span>{{ m.size }}</div>
+                    <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Current input source</span>{{ m.input }}</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+                    <span style="font-size:12px;color:var(--ink-3)">{{ m.ddcLabel }}</span>
+                    <sc-for list="{{ m.inputs }}" as="i" hint-placeholder-count="3">
+                      <span style="display:flex;align-items:center;height:32px;padding:0 11px;border:1px solid {{ i.line }};border-radius:var(--r-sm);background:{{ i.bg }};font-family:var(--data);font-size:11.5px;color:{{ i.ink }};cursor:{{ i.cursor }}">{{ i.label }}</span>
+                    </sc-for>
+                    <span style="font-size:12px;color:{{ m.testInk }};cursor:pointer;font-weight:500">{{ m.test }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1g Monitors loading -->
+    <div id="1g" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1g</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Monitors &#183; probing</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">The probe takes a few seconds; last known values stay readable</span>
+      </div>
+      <div style="width:1224px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 28px;border-bottom:1px solid var(--line)">
+          <div style="display:flex;align-items:center;gap:12px">
+            <h2 style="margin:0;font-family:var(--display);font-size:20px;font-weight:600">Monitors</h2>
+            <span style="font-family:var(--data);font-size:11.5px;padding:3px 8px;border-radius:var(--r-sm);background:var(--accent-soft);color:var(--accent)">Probing&#8230;</span>
+          </div>
+          <button style="height:44px;padding:0 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--ink-3);font-family:var(--body);font-size:14px">Refresh</button>
+        </div>
+        <div style="display:flex;flex-direction:column;opacity:0.55">
+          <sc-for list="{{ skeleton }}" as="s" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:10px;padding:16px 28px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;align-items:center;gap:12px">
+                <div style="width:60px;height:20px;border-radius:var(--r-sm);background:var(--surface-3)"></div>
+                <div style="width:{{ s.w1 }};height:18px;border-radius:var(--r-sm);background:var(--surface-3)"></div>
+                <div style="width:{{ s.w2 }};height:14px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px">
+                <div style="height:28px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+                <div style="height:28px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+                <div style="height:28px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+                <div style="height:28px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+                <div style="height:28px;border-radius:var(--r-sm);background:var(--surface-2)"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1h Settings -->
+    <div id="1h" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1h</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Settings</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Q1 default shortcut location, log viewer, config, about</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="settings" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Settings</h2>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:24px 28px;display:flex;flex-direction:column;gap:28px;max-width:820px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Default shortcut location</h3>
+                <div style="display:flex;gap:10px">
+                  <label style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft);cursor:pointer">
+                    <input type="radio" name="loc" checked="{{ true }}" style="width:16px;height:16px;accent-color:var(--accent)">
+                    <span style="font-size:13.5px;font-weight:500">Desktop</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);cursor:pointer">
+                    <input type="radio" name="loc" style="width:16px;height:16px;accent-color:var(--accent)">
+                    <span style="font-size:13.5px;color:var(--ink-2)">Start menu</span>
+                  </label>
+                  <label style="display:flex;align-items:center;gap:10px;min-height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);cursor:pointer">
+                    <input type="radio" name="loc" style="width:16px;height:16px;accent-color:var(--accent)">
+                    <span style="font-size:13.5px;color:var(--ink-2)">Both</span>
+                  </label>
+                </div>
+                <p style="margin:0;font-size:12.5px;color:var(--ink-3)">New layouts use this when "Create a shortcut now" is on.</p>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px">
+                  <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Log</h3>
+                  <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">%LOCALAPPDATA%\layoutswap\layoutswap.log</span>
+                </div>
+                <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                  <div style="max-height:150px;overflow:auto;padding:12px 14px;background:var(--surface-2);font-family:var(--data);font-size:11.5px;line-height:1.75;color:var(--ink-2);white-space:pre">14:32:07  probe: 4 monitors, 3 active
+14:31:52  switch Console: applied in 11.4 s
+14:31:47  send HDMI 1 to Ultrawide: ok
+14:31:41  switch Console: started
+14:12:03  switch Desk: applied in 8.1 s</div>
+                  <div style="display:flex;justify-content:flex-end;gap:10px;padding:10px 14px;border-top:1px solid var(--line)">
+                    <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Open log</button>
+                    <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--crit);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--crit);background:var(--crit-soft)">Clear log</button>
+                  </div>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Config</h3>
+                <div style="display:flex;align-items:center;gap:10px">
+                  <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Export config</button>
+                  <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Import config</button>
+                  <span style="font-size:12.5px;color:var(--ink-3)">Import replaces every layout and re-generates scripts.</span>
+                </div>
+              </div>
+
+              <div style="display:flex;flex-direction:column;gap:8px;padding-top:20px;border-top:1px solid var(--line)">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">About</h3>
+                <div style="display:flex;gap:24px;font-size:13px;color:var(--ink-2)">
+                  <span>layoutswap <span style="font-family:var(--data)">1.0.0</span></span>
+                  <span>MIT licence</span>
+                  <a href="#1h">Repository</a>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1i failure + elevation -->
+    <div id="1i" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">1i</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Failure and elevation</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Both read as plain text in a console window too</span>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+          <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--crit);border-left:4px solid var(--crit);border-radius:var(--r);background:var(--crit-soft)">
+            <div style="font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)">Arrange it in Settings &gt; Display, then Save current layout again.</div>
+            <p style="margin:0;font-size:13px;line-height:1.6;color:var(--ink-2);text-wrap:pretty">Switch to Console applied, but Side landed at 3440,0 instead of 3440,180. layoutswap does not move monitors.</p>
+            <div style="display:flex;gap:10px;padding-top:2px">
+              <button style="height:44px;padding:0 14px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:13px;font-weight:600;cursor:pointer">Open Settings &gt; Display</button>
+              <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Open log</button>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Steps that ran</div>
+            <sc-for list="{{ result }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r)">
+                <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:62px;text-align:center">{{ s.status }}</span>
+                <span style="flex:1;font-size:13.5px;color:var(--ink)">{{ s.text }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">{{ s.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+        <div style="width:520px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 12px 30px oklch(0.24 0.02 235 / 0.18)">
+            <div style="display:flex;align-items:center;height:36px;padding:0 12px;background:var(--surface-2);border-bottom:1px solid var(--line);font-size:12px;color:var(--ink-2)">Administrator permission needed</div>
+            <div style="display:flex;flex-direction:column;gap:12px;padding:20px">
+              <div style="font-family:var(--display);font-size:17px;font-weight:600">Installing the unlock trigger needs administrator permission</div>
+              <p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-2);text-wrap:pretty">Windows will ask you to confirm. The logon trigger is already installed and does not need this.</p>
+              <div style="display:flex;justify-content:flex-end;gap:10px">
+                <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer">Skip the unlock trigger</button>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer">Continue</button>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding:18px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+            <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Same result from a shortcut launch</div>
+            <div style="padding:14px;border-radius:var(--r);background:oklch(0.20 0.012 235);font-family:var(--data);font-size:11.5px;line-height:1.8;color:oklch(0.90 0.01 195);white-space:pre">Switch to Console
+  [ok]     Send HDMI 1 to Ultrawide
+  [ok]     Wait until Ultrawide is Available
+  [ok]     Apply arrangement
+  [failed] Side landed at 3440,0 (expected 3440,180)
+
+Arrange it in Settings &gt; Display, then
+Save current layout again.
+Press any key to close.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2a Audio -->
+    <div id="2a" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">2a</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Audio inventory</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Playback then Capture &#183; one endpoint Absent because its monitor is off</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="audio" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Audio</h2>
+                <p style="margin:0;font-size:13px;color:var(--ink-2)">Five endpoints. Layouts enable, disable or leave each one alone.</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;flex:none">
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">Last probe 14:32</span>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;font-weight:500;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Refresh</button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+              <sc-for list="{{ audioGroups }}" as="g" hint-placeholder-count="2">
+                <div style="display:flex;flex-direction:column">
+                  <div style="padding:10px 28px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">{{ g.title }}</div>
+                  <sc-for list="{{ g.rows }}" as="e" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:1fr 108px 360px;gap:16px;align-items:center;padding:0 28px;min-height:56px;border-bottom:1px solid var(--line)" style-hover="background:var(--surface-2)">
+                      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                        <span style="font-size:14px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.name }}</span>
+                        <span style="font-size:11px;font-weight:500;color:var(--accent)">{{ e.tag }}</span>
+                      </div>
+                      <div><span style="font-family:var(--data);font-size:11px;padding:3px 7px;border-radius:var(--r-sm);background:{{ e.bg }};color:{{ e.ink }}">{{ e.state }}</span></div>
+                      <div style="font-size:12.5px;color:{{ e.useInk }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ e.use }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </sc-for>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2b Remote Desktop -->
+    <div id="2b" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">2b</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Remote Desktop</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Scheduled task not installed; the installed state is below</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="rdp" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Remote Desktop</h2>
+                <p style="margin:0;font-size:13px;color:var(--ink-2)">Three connection files. A switch that refreshes RDP profiles rewrites the monitor IDs in these files.</p>
+              </div>
+              <div style="display:flex;gap:10px;flex:none">
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Dry run</button>
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer" style-hover="border-color:var(--ink-3)">Capture fingerprints</button>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Add file</button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:26px;padding:22px 28px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Connection files</h3>
+                <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                  <div style="display:grid;grid-template-columns:1fr 300px 116px 152px;gap:16px;padding:9px 14px;background:var(--surface-2);border-bottom:1px solid var(--line);font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">
+                    <div>File</div><div>Spans</div><div>Fingerprints</div><div></div>
+                  </div>
+                  <sc-for list="{{ rdpFiles }}" as="f" hint-placeholder-count="3">
+                    <div style="display:grid;grid-template-columns:1fr 300px 116px 152px;gap:16px;align-items:center;padding:0 14px;min-height:56px;border-bottom:1px solid var(--line)" style-hover="background:var(--surface-2)">
+                      <div style="font-family:var(--data);font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.file }}</div>
+                      <div style="font-size:12.5px;color:var(--ink-2)">{{ f.spans }}</div>
+                      <div><span style="font-family:var(--data);font-size:11px;padding:3px 7px;border-radius:var(--r-sm);background:{{ f.bg }};color:{{ f.ink }}">{{ f.match }}</span></div>
+                      <div style="display:flex;gap:12px;justify-content:flex-end">
+                        <span style="font-size:12px;color:var(--accent);cursor:pointer" style-hover="text-decoration:underline">Recapture</span>
+                        <span style="font-size:12px;color:var(--ink-2);cursor:pointer" style-hover="color:var(--crit);text-decoration:underline">Remove</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Scheduled task</h3>
+                <p style="margin:0;font-size:13.5px;color:var(--ink)">Not installed</p>
+                <p style="margin:0;font-size:13px;color:var(--ink-2);text-wrap:pretty">A scheduled task refreshes RDP profiles at logon, so a connection saved before a switch still spans the right monitors. Unlock trigger: not installed, needs administrator.</p>
+                <div style="display:flex;gap:10px;padding-top:2px">
+                  <button style="height:44px;padding:0 16px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Install</button>
+                  <button style="height:44px;padding:0 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--ink-3);font-family:var(--body);font-size:14px">Remove</button>
+                </div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div style="width:1012px;display:flex;flex-direction:column;gap:10px;padding:20px 24px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Scheduled task</h3>
+          <span style="font-size:12px;color:var(--ink-3)">Installed, unlock trigger missing</span>
+        </div>
+        <p style="margin:0;font-size:13.5px;color:var(--ink)">Installed &#183; logon</p>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span>
+          <span style="font-size:13px;color:var(--ink-2)">Unlock trigger: not installed, needs administrator</span>
+        </div>
+        <div style="display:flex;gap:10px;padding-top:4px">
+          <button style="height:44px;padding:0 16px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Install unlock trigger</button>
+          <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer" style-hover="border-color:var(--crit);color:var(--crit)">Remove</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2c Switch progress -->
+    <div id="2c" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">2c</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Switch progress</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Replaces the detail in the content area &#183; running, needs you, done</span>
+      </div>
+      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="Console" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Switching to Console</h2>
+              <span style="font-family:var(--data);font-size:13px;color:var(--ink-2)">7.1 s elapsed</span>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:22px 28px;display:flex;flex-direction:column;gap:22px">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <sc-for list="{{ runSteps }}" as="s" hint-placeholder-count="5">
+                  <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid {{ s.line }};border-radius:var(--r);background:{{ s.rowBg }}">
+                    <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 8px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+                    <span style="flex:1;font-size:14px;color:{{ s.textInk }}">{{ s.text }}</span>
+                    <span style="font-family:var(--data);font-size:11.5px;color:var(--ink-2)">{{ s.time }}</span>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Log</div>
+                <div style="padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);font-family:var(--data);font-size:11.5px;line-height:1.75;color:var(--ink-2);white-space:pre">14:38:14  wait: Ultrawide not Available yet (6 s)
+14:38:09  send HDMI 1 to Ultrawide: ok
+14:38:08  switch Console: 4 steps
+14:38:08  switch Console: started
+14:38:07  probe: 4 monitors, 3 active</div>
+              </div>
+              <div>
+                <button style="height:44px;padding:0 18px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer" style-hover="border-color:var(--crit);color:var(--crit)">Cancel</button>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="margin:0;font-family:var(--display);font-size:17px;font-weight:600">Switching to Console</h3>
+            <span style="font-family:var(--data);font-size:12.5px;color:var(--ink-2)">28.4 s elapsed</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--warn);border-left:4px solid var(--warn);border-radius:var(--r);background:var(--warn-soft)">
+            <div style="font-family:var(--display);font-size:14.5px;font-weight:600;color:var(--ink)">Press the input button on Ultrawide, or turn the console off.</div>
+            <p style="margin:0;font-size:12.5px;color:var(--ink-2)">Waiting until Ultrawide is Available &#183; 92 s left of 120 s</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ needSteps }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid {{ s.line }};border-radius:var(--r);background:{{ s.rowBg }}">
+                <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+                <span style="flex:1;font-size:13.5px;color:{{ s.textInk }}">{{ s.text }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">{{ s.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div>
+            <button style="height:44px;padding:0 18px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer" style-hover="border-color:var(--crit);color:var(--crit)">Cancel</button>
+          </div>
+        </div>
+        <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="margin:0;font-family:var(--display);font-size:17px;font-weight:600">Switched to Console</h3>
+            <span style="font-family:var(--data);font-size:12.5px;color:var(--good)">Applied in 11.4 s</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ doneSteps }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);border-radius:var(--r)">
+                <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+                <span style="flex:1;font-size:13.5px;color:var(--ink)">{{ s.text }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">{{ s.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);font-family:var(--data);font-size:11.5px;line-height:1.75;color:var(--ink-2);white-space:pre">14:38:19  refresh RDP profiles: 3 files written
+14:38:18  apply arrangement: ok
+14:38:16  send DisplayPort to Side: ok
+14:38:15  wait: Ultrawide Available after 6.2 s
+14:38:09  send HDMI 1 to Ultrawide: ok</div>
+          <div>
+            <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Back to Console</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2d dark -->
+    <div id="2d" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">2d</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Dark theme, merged screen</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Same markup as <a href="#1a">1a</a>, same token names</span>
+      </div>
+      <div data-theme="dark" style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.12 0.02 235 / 0.5)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="Console" hover-row="Desk" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:20px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em;color:var(--ink)">Console</h2>
+                <div style="display:flex;align-items:center;gap:8px"><span style="width:7px;height:7px;border-radius:50%;background:var(--warn)"></span><span style="font-size:12.5px;color:var(--ink-2)">Shortcut missing</span></div>
+              </div>
+              <div style="display:flex;gap:10px;flex:none">
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Open log</button>
+                <button style="height:44px;padding:0 14px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:13px;cursor:pointer">Regenerate script</button>
+                <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer">Switch to Console</button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;padding:20px 28px;display:flex;flex-direction:column;gap:22px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)">Monitors in this layout</h3>
+                <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+                  <sc-for list="{{ inLayout }}" as="m" hint-placeholder-count="4">
+                    <div style="display:grid;grid-template-columns:1fr 300px 108px;gap:12px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--line)">
+                      <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                        <span style="font-size:13.5px;font-weight:500;color:var(--ink)">{{ m.alias }}</span>
+                        <span style="font-family:var(--data);font-size:11px;padding:2px 6px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}</span>
+                      </div>
+                      <div style="font-size:12px;color:var(--ink-2);text-wrap:pretty">{{ m.hint }}</div>
+                      <div style="display:flex;justify-content:flex-end">
+                        <div style="display:flex;height:32px;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;font-size:12px">
+                          <div style="display:flex;align-items:center;padding:0 11px;background:{{ m.onBg }};color:{{ m.onInk }};font-weight:500">On</div>
+                          <div style="display:flex;align-items:center;padding:0 11px;background:{{ m.offBg }};color:{{ m.offInk }};border-left:1px solid var(--line-strong);font-weight:500">Off</div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)">Steps</h3>
+                <sc-for list="{{ stepsBefore }}" as="s" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)">
+                    <span style="font-family:var(--data);font-size:13px;color:var(--ink-3);cursor:grab">&#8801;</span>
+                    <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);width:14px">{{ s.n }}</span>
+                    <span style="flex:1;font-size:14px;color:var(--ink)">{{ s.text }}</span>
+                    <span style="font-family:var(--data);font-size:11px;padding:3px 8px;border-radius:var(--r-sm);background:var(--surface-3);color:var(--ink-2)">{{ s.wait }}</span>
+                    <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-3);cursor:pointer">&#10005;</span>
+                  </div>
+                </sc-for>
+                <sc-for list="{{ stepsAfter }}" as="s" hint-placeholder-count="2">
+                  <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)">
+                    <span style="font-family:var(--data);font-size:13px;color:var(--ink-3);cursor:grab">&#8801;</span>
+                    <span style="font-family:var(--data);font-size:11px;color:var(--ink-3);width:14px">{{ s.n }}</span>
+                    <span style="flex:1;font-size:14px;color:var(--ink)">{{ s.text }}</span>
+                    <span style="font-family:var(--data);font-size:11px;padding:3px 8px;border-radius:var(--r-sm);background:var(--surface-3);color:var(--ink-2)">{{ s.wait }}</span>
+                    <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-3);cursor:pointer">&#10005;</span>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;createShortcutDefault&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Behaviour&quot;},&quot;shortcutLocation&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Desktop&quot;,&quot;Start menu&quot;,&quot;Both&quot;],&quot;default&quot;:&quot;Desktop&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Behaviour&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() { document.documentElement.setAttribute("data-theme", "light"); }
+  renderVals() {
+    const T = {
+      good: { bg: "var(--good-soft)", ink: "var(--good)" },
+      warn: { bg: "var(--warn-soft)", ink: "var(--warn)" },
+      crit: { bg: "var(--crit-soft)", ink: "var(--crit)" },
+      mute: { bg: "var(--surface-3)", ink: "var(--ink-2)" },
+    };
+    const loc = this.props.shortcutLocation ?? "Desktop";
+    const seg = (on) => on
+      ? { bg: "var(--accent)", ink: "var(--accent-ink)" }
+      : { bg: "var(--surface)", ink: "var(--ink-2)" };
+
+    const layouts = [
+      { name: "Desk", saved: "saved 2 Sep", monitors: "3 on \u00b7 1 off", shortcut: "Shortcut on Desktop", dot: "var(--good)", switch: "Switch to Desk" },
+      { name: "Console", saved: "saved 6 Sep", monitors: "2 on \u00b7 2 off", shortcut: "Shortcut missing", dot: "var(--warn)", switch: "Switch to Console" },
+      { name: "Film", saved: "saved 28 Aug", monitors: "1 on \u00b7 3 off", shortcut: "Shortcut stale \u00b7 regenerate", dot: "var(--warn)", switch: "Switch to Film" },
+      { name: "Meeting", saved: "saved 12 Aug", monitors: "2 on \u00b7 2 off", shortcut: "Shortcut on Desktop and Start menu", dot: "var(--good)", switch: "Switch to Meeting" },
+    ];
+
+    const capture = [
+      { state: "On", stateBg: "var(--accent-soft)", stateInk: "var(--accent)", alias: "Ultrawide", name: "Dell U4025QW", size: "3440\u00d71440 \u00b7 120 Hz", pos: "0,0", primary: "Primary" },
+      { state: "On", stateBg: "var(--accent-soft)", stateInk: "var(--accent)", alias: "Side", name: "LG 27GP850", size: "1920\u00d71080 \u00b7 60 Hz", pos: "3440,180", primary: "" },
+      { state: "Off", stateBg: T.mute.bg, stateInk: T.mute.ink, alias: "Portrait", name: "Dell P2419H", size: "\u2014", pos: "\u2014", primary: "" },
+      { state: "Off", stateBg: T.mute.bg, stateInk: T.mute.ink, alias: "TV", name: "Samsung Q80", size: "\u2014", pos: "\u2014", primary: "" },
+    ];
+
+    const arrangement = [
+      { alias: "Ultrawide", primary: "Primary", spec: "0,0 \u00b7 3440\u00d71440 \u00b7 120 Hz \u00b7 landscape \u00b7 100%" },
+      { alias: "Side", primary: "", spec: "3440,180 \u00b7 1920\u00d71080 \u00b7 60 Hz \u00b7 landscape \u00b7 100%" },
+    ];
+
+    const inLayout = [
+      { alias: "Ultrawide", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink, hint: "", ...(() => { const on = seg(true), off = seg(false); return { onBg: on.bg, onInk: on.ink, offBg: off.bg, offInk: off.ink }; })() },
+      { alias: "Side", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink, hint: "", ...(() => { const on = seg(true), off = seg(false); return { onBg: on.bg, onInk: on.ink, offBg: off.bg, offInk: off.ink }; })() },
+      { alias: "Portrait", state: "Available", stateBg: T.warn.bg, stateInk: T.warn.ink, hint: "Turn it on in Windows Settings, then Save current layout again.", ...(() => { const on = seg(false), off = seg(true); return { onBg: on.bg, onInk: on.ink, offBg: off.bg, offInk: off.ink }; })() },
+      { alias: "TV", state: "Absent", stateBg: T.crit.bg, stateInk: T.crit.ink, hint: "TV is Absent: press its input button, then try again.", ...(() => { const on = seg(false), off = seg(true); return { onBg: on.bg, onInk: on.ink, offBg: off.bg, offInk: off.ink }; })() },
+    ];
+
+    const stepsBefore = [
+      { n: "1", text: "Send HDMI 1 to Ultrawide", wait: "Wait until Ultrawide is Available \u00b7 120 s" },
+      { n: "2", text: "Wait 3 seconds", wait: "no wait rule" },
+    ];
+    const stepsAfter = [
+      { n: "3", text: "Send DisplayPort to Side", wait: "Wait until Side drops" },
+      { n: "4", text: "Refresh RDP profiles", wait: "7 tries, 15 s apart" },
+    ];
+
+    const endpoint = (flow, name, choice, isDefault) => {
+      const a = seg(choice === "enable"), b = seg(choice === "disable"), c = seg(choice === "leave");
+      const radioOff = flow === "Playback" && choice !== "enable";
+      return {
+        flow, name, hasRadio: flow === "Playback", isDefault: !!isDefault, radioOff,
+        radioInk: radioOff ? "var(--ink-3)" : "var(--ink)",
+        radioCursor: radioOff ? "not-allowed" : "pointer",
+        enBg: a.bg, enInk: a.ink, disBg: b.bg, disInk: b.ink, leaveBg: c.bg, leaveInk: c.ink,
+      };
+    };
+    const audio = [
+      endpoint("Playback", "Ultrawide speakers", "enable", true),
+      endpoint("Playback", "Side speakers", "enable", false),
+      endpoint("Playback", "Realtek Digital Output", "disable", false),
+      endpoint("Capture", "Yeti X", "leave", false),
+    ];
+
+    const audioGroups = [
+      {
+        title: "Playback",
+        rows: [
+          { name: "Ultrawide speakers", tag: "Default output", state: "Active", bg: T.good.bg, ink: T.good.ink, use: "Desk: enable, default \u00b7 Console: enable, default", useInk: "var(--ink-2)" },
+          { name: "Side speakers", tag: "", state: "Active", bg: T.good.bg, ink: T.good.ink, use: "Desk: enable \u00b7 Console: enable", useInk: "var(--ink-2)" },
+          { name: "Realtek Digital Output", tag: "", state: "Disabled", bg: T.mute.bg, ink: T.mute.ink, use: "Console: disable \u00b7 Film: disable", useInk: "var(--ink-2)" },
+          { name: "TV speakers", tag: "", state: "Absent", bg: T.crit.bg, ink: T.crit.ink, use: "Film: enable, default \u2014 TV is off in every other layout", useInk: "var(--ink-2)" },
+        ],
+      },
+      {
+        title: "Capture",
+        rows: [
+          { name: "Yeti X", tag: "", state: "Active", bg: T.good.bg, ink: T.good.ink, use: "Not used by any layout", useInk: "var(--ink-3)" },
+        ],
+      },
+    ];
+
+    const rdpFiles = [
+      { file: "work-vm.rdp", spans: "Ultrawide, Side", match: "IDs match", bg: T.good.bg, ink: T.good.ink },
+      { file: "lab-bench.rdp", spans: "Ultrawide, Side, Portrait", match: "IDs stale", bg: T.warn.bg, ink: T.warn.ink },
+      { file: "jump-host.rdp", spans: "Ultrawide", match: "IDs match", bg: T.good.bg, ink: T.good.ink },
+    ];
+
+    const progress = (status, text, time) => {
+      const map = {
+        done: { ...T.good, line: "var(--line)", rowBg: "var(--surface)", textInk: "var(--ink)" },
+        running: { bg: "var(--accent-soft)", ink: "var(--accent)", line: "var(--accent)", rowBg: "var(--accent-soft)", textInk: "var(--ink)" },
+        waiting: { ...T.mute, line: "var(--line)", rowBg: "var(--surface)", textInk: "var(--ink-2)" },
+        "needs you": { bg: "var(--warn-soft)", ink: "var(--warn)", line: "var(--warn)", rowBg: "var(--warn-soft)", textInk: "var(--ink)" },
+        failed: { ...T.crit, line: "var(--crit)", rowBg: "var(--crit-soft)", textInk: "var(--ink)" },
+        skipped: { ...T.mute, line: "var(--line)", rowBg: "var(--surface)", textInk: "var(--ink-3)" },
+      };
+      return { status, text, time, ...map[status] };
+    };
+
+    const runSteps = [
+      progress("done", "Send HDMI 1 to Ultrawide", "0.9 s"),
+      progress("running", "Wait until Ultrawide is Available", "6.2 s of 120 s"),
+      progress("waiting", "Apply arrangement", ""),
+      progress("waiting", "Send DisplayPort to Side", ""),
+      progress("waiting", "Refresh RDP profiles", ""),
+    ];
+    const needSteps = [
+      progress("done", "Send HDMI 1 to Ultrawide", "0.9 s"),
+      progress("needs you", "Wait until Ultrawide is Available", "28 s of 120 s"),
+      progress("waiting", "Apply arrangement", ""),
+      progress("waiting", "Refresh RDP profiles", ""),
+    ];
+    const doneSteps = [
+      progress("done", "Send HDMI 1 to Ultrawide", "0.9 s"),
+      progress("done", "Wait until Ultrawide is Available", "6.2 s"),
+      progress("done", "Apply arrangement", "3.4 s"),
+      progress("done", "Send DisplayPort to Side", "0.6 s"),
+      progress("done", "Refresh RDP profiles", "0.3 s"),
+    ];
+
+    const chip = (label, kind) => kind === "current"
+      ? { label, bg: "var(--accent-soft)", line: "var(--accent-line)", ink: "var(--accent)", cursor: "pointer" }
+      : kind === "off"
+        ? { label, bg: "var(--surface-2)", line: "var(--line)", ink: "var(--ink-3)", cursor: "not-allowed" }
+        : { label, bg: "var(--surface)", line: "var(--line-strong)", ink: "var(--ink-2)", cursor: "pointer" };
+
+    const monitors = [
+      {
+        alias: "Ultrawide", name: "Dell U4025QW", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Desk, Console, Meeting", gpu: "RTX 4080", connector: "DisplayPort 1", pos: "0,0", size: "3440\u00d71440 \u00b7 120 Hz", input: "DisplayPort",
+        ddcLabel: "Input sources", inputs: [chip("DisplayPort", "current"), chip("HDMI 1", "idle"), chip("HDMI 2", "idle"), chip("USB-C", "idle")],
+        test: "Send input now", testInk: "var(--accent)",
+      },
+      {
+        alias: "Side", name: "LG 27GP850", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Desk, Console", gpu: "RTX 4080", connector: "HDMI 2", pos: "3440,180", size: "1920\u00d71080 \u00b7 60 Hz", input: "HDMI 2",
+        ddcLabel: "Input sources", inputs: [chip("DisplayPort", "idle"), chip("HDMI 1", "idle"), chip("HDMI 2", "current")],
+        test: "Send input now", testInk: "var(--accent)",
+      },
+      {
+        alias: "Portrait", name: "Dell P2419H", state: "Available", stateBg: T.warn.bg, stateInk: T.warn.ink,
+        note: "Plugged in, Windows is not drawing to it", gpu: "RTX 4080", connector: "DisplayPort 2", pos: "\u2014", size: "1920\u00d71080 \u00b7 60 Hz", input: "DisplayPort",
+        ddcLabel: "Input sources", inputs: [chip("DisplayPort", "current"), chip("HDMI 1", "idle")],
+        test: "Send input now", testInk: "var(--accent)",
+      },
+      {
+        alias: "TV", name: "Samsung Q80", state: "Absent", stateBg: T.crit.bg, stateInk: T.crit.ink,
+        note: "Press its input button, then Refresh", gpu: "RTX 4080", connector: "HDMI 1", pos: "\u2014", size: "last seen 3840\u00d72160 \u00b7 60 Hz", input: "unknown",
+        ddcLabel: "No DDC-CI: input sources can't be read or sent", inputs: [chip("Input sources unavailable", "off")],
+        test: "Send input now unavailable", testInk: "var(--ink-3)",
+      },
+    ];
+
+    const skeleton = [
+      { w1: "120px", w2: "160px" }, { w1: "84px", w2: "150px" }, { w1: "104px", w2: "140px" }, { w1: "70px", w2: "170px" },
+    ];
+
+    const result = [
+      { status: "done", bg: T.good.bg, ink: T.good.ink, text: "Send HDMI 1 to Ultrawide", time: "0.9 s" },
+      { status: "done", bg: T.good.bg, ink: T.good.ink, text: "Wait until Ultrawide is Available", time: "6.2 s" },
+      { status: "done", bg: T.good.bg, ink: T.good.ink, text: "Apply arrangement", time: "3.4 s" },
+      { status: "failed", bg: T.crit.bg, ink: T.crit.ink, text: "Side is not where the layout expects", time: "" },
+      { status: "skipped", bg: T.mute.bg, ink: T.mute.ink, text: "Refresh RDP profiles", time: "" },
+    ];
+
+    return {
+      layouts, capture, arrangement, inLayout, stepsBefore, stepsAfter, audio, monitors, skeleton, result,
+      audioGroups, rdpFiles, runSteps, needSteps, doneSteps, false: false,
+      createShortcut: this.props.createShortcutDefault ?? true,
+      shortcutHint: "Goes to " + (loc === "Both" ? "the Desktop and the Start menu" : loc === "Start menu" ? "the Start menu" : "the Desktop") + ". Change the default in Settings.",
+      true: true,
+    };
+  }
+}
+</script>
+</body>
+</html>

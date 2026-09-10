@@ -1,0 +1,166 @@
+/*
+ * Design tokens, lifted from the turn-two canvas (docs/design/canvases/v1-settings-window.dc.html).
+ * The only file where a colour, font, radius or spacing value is written; components
+ * style themselves through these. Theme rule in DESIGN.md: the complete light palette on
+ * bare :root, dark as token redefinitions only, an explicit data-theme wins both ways.
+ */
+
+:root {
+  /* Surfaces and lines, cool neutrals biased toward the accent */
+  --ground: oklch(0.975 0.004 195);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.966 0.006 195);
+  --surface-3: oklch(0.945 0.008 195);
+  --line: oklch(0.905 0.008 195);
+  --line-strong: oklch(0.83 0.012 195);
+
+  /* Ink */
+  --ink: oklch(0.245 0.015 235);
+  --ink-2: oklch(0.47 0.013 235);
+  --ink-3: oklch(0.50 0.011 235);
+
+  /* Accent: teal (Q10) */
+  --accent: oklch(0.495 0.10 195);
+  --accent-hover: oklch(0.44 0.10 195);
+  --accent-ink: oklch(0.99 0.002 195);
+  --accent-soft: oklch(0.955 0.028 195);
+  --accent-line: oklch(0.80 0.06 195);
+
+  /* Semantic: distinct from the accent */
+  --good: oklch(0.50 0.11 150);
+  --good-soft: oklch(0.945 0.045 150);
+  --warn: oklch(0.53 0.11 70);
+  --warn-soft: oklch(0.955 0.055 80);
+  --crit: oklch(0.505 0.155 25);
+  --crit-soft: oklch(0.955 0.045 25);
+  --focus: oklch(0.55 0.14 250);
+
+  /* Radii */
+  --r-sm: 3px;
+  --r: 6px;
+  --r-lg: 10px;
+
+  /* Type: display, body, data (Q8) */
+  --display: "Instrument Sans", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  --body: "Libre Franklin", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --data: "JetBrains Mono", "Cascadia Mono", ui-monospace, monospace;
+
+  /* Type scale, one fixed set */
+  --text-xs: 10.5px;
+  --text-sm: 12px;
+  --text-md: 13.5px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 24px;
+  --text-2xl: 26px;
+  --leading: 1.5;
+  --leading-prose: 1.6;
+  --tracking-tight: -0.01em;
+
+  /* Spacing, the steps the canvas uses */
+  --space-0: 2px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 10px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 20px;
+  --space-7: 28px;
+  --space-8: 40px;
+
+  /* Lines and marks */
+  --hairline: 1px;
+  --mark-w: 2px;
+
+  /* Layout measures */
+  --control-h: 44px;
+  --row-h: 40px;
+  --sidebar-w: 212px;
+  --prose-w: 520px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: oklch(0.185 0.010 235);
+    --surface: oklch(0.225 0.011 235);
+    --surface-2: oklch(0.255 0.012 235);
+    --surface-3: oklch(0.295 0.013 235);
+    --line: oklch(0.335 0.013 235);
+    --line-strong: oklch(0.44 0.015 235);
+    --ink: oklch(0.955 0.005 195);
+    --ink-2: oklch(0.775 0.010 220);
+    --ink-3: oklch(0.685 0.012 225);
+    --accent: oklch(0.70 0.10 195);
+    --accent-hover: oklch(0.78 0.10 195);
+    --accent-ink: oklch(0.19 0.02 195);
+    --accent-soft: oklch(0.315 0.045 195);
+    --accent-line: oklch(0.45 0.06 195);
+    --good: oklch(0.72 0.12 150);
+    --good-soft: oklch(0.30 0.05 150);
+    --warn: oklch(0.78 0.12 80);
+    --warn-soft: oklch(0.32 0.055 75);
+    --crit: oklch(0.68 0.15 25);
+    --crit-soft: oklch(0.32 0.06 25);
+    --focus: oklch(0.72 0.13 250);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: oklch(0.185 0.010 235);
+  --surface: oklch(0.225 0.011 235);
+  --surface-2: oklch(0.255 0.012 235);
+  --surface-3: oklch(0.295 0.013 235);
+  --line: oklch(0.335 0.013 235);
+  --line-strong: oklch(0.44 0.015 235);
+  --ink: oklch(0.955 0.005 195);
+  --ink-2: oklch(0.775 0.010 220);
+  --ink-3: oklch(0.685 0.012 225);
+  --accent: oklch(0.70 0.10 195);
+  --accent-hover: oklch(0.78 0.10 195);
+  --accent-ink: oklch(0.19 0.02 195);
+  --accent-soft: oklch(0.315 0.045 195);
+  --accent-line: oklch(0.45 0.06 195);
+  --good: oklch(0.72 0.12 150);
+  --good-soft: oklch(0.30 0.05 150);
+  --warn: oklch(0.78 0.12 80);
+  --warn-soft: oklch(0.32 0.055 75);
+  --crit: oklch(0.68 0.15 25);
+  --crit-soft: oklch(0.32 0.06 25);
+  --focus: oklch(0.72 0.13 250);
+}
+
+/* Base: the few rules every screen shares. Components carry no outer margins. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: var(--text-md);
+  line-height: var(--leading);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

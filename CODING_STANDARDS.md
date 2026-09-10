@@ -18,6 +18,7 @@ src/                      Vue renderer
   ui/tokens.css           design tokens (the rule for them lives in DESIGN.md)
   ui/                     shared primitives (Button.vue, Field.vue, ...)
   domain/                 pure TypeScript types and validation; imports nothing from Tauri
+  domain/generated/       shared types generated from Rust by ts-rs; never hand-edited
   tauri/commands.ts       the only file that calls invoke(); typed wrappers per command
   test/                   test helpers (withSetup, commands.ts mock factory)
   features/

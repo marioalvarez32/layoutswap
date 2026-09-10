@@ -6,8 +6,10 @@ on or off, keep Remote Desktop monitor IDs correct, and enable or disable audio
 endpoints. Every layout becomes a generated script and a shortcut, so switching
 works with the app closed.
 
-**Status:** pre-alpha. The definition phase is complete; the app is not yet
-scaffolded. The reference scripts under `samples/` do the job today by hand.
+**Status:** pre-alpha. The definition phase is complete and the app is scaffolded:
+it opens, remembers its window size, and shows the first-run empty state. Capture
+and switch are the next slices. The reference scripts under `samples/` do the job
+today by hand.
 
 ## Why
 
@@ -62,6 +64,25 @@ hardware facts behind them are in `docs/windows-behaviour.md`.
 | Monitors | ASUS VG34VQEL1A ultrawide, two MSI MP165 E6, Acer KG241Y X1, LG FULL HD, built-in panel |
 
 ## Development
+
+Prerequisites: Node with pnpm, the Rust toolchain (`x86_64-pc-windows-msvc`), the
+Visual Studio C++ build tools, and the WebView2 runtime that ships with Windows 11.
+
+```
+pnpm install          # once per clone
+pnpm tauri dev        # opens the app with hot reload
+pnpm lint             # ESLint: lint and formatting check
+pnpm format           # ESLint --fix: rewrite formatting
+pnpm typecheck        # vue-tsc, TypeScript strict
+pnpm test             # Vitest with Vue Test Utils
+pnpm test:rust        # cargo test for the backend
+pnpm lint:rust        # cargo clippy with warnings denied
+pnpm generate:types   # regenerate src/domain/generated/types.ts from the Rust types
+```
+
+`cargo test` also regenerates the TypeScript bindings, so a change to a shared Rust
+type shows up as a diff in the generated file. The app writes everything it owns under
+`%LOCALAPPDATA%\layoutswap`; delete that folder to start fresh.
 
 The engineering process, from idea to merged change, is in `CONTRIBUTING.md`. Code
 conventions are in `CODING_STANDARDS.md`; UI decisions in `DESIGN.md`; the domain

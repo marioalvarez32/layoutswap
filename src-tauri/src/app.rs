@@ -3,9 +3,11 @@
 //! stay one line each; the tests here drive the same functions through a fake runner
 //! and a temp directory. The switch itself lives in [`switch`].
 
+mod diagnostics;
+mod log;
 mod switch;
 
-pub use switch::{SwitchEvent, SwitchResult};
+pub use switch::{FailureExplanation, SwitchEvent, SwitchResult};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -85,6 +87,15 @@ impl App {
             let _ = fs::create_dir_all(self.root());
             let _ = fs::write(self.root().join(LAST_PROBE_NAME), json);
         }
+        self.log(format!(
+            "probe: {} monitors, {} active",
+            inventory.monitors.len(),
+            inventory
+                .monitors
+                .iter()
+                .filter(|m| m.state == hardware::MonitorState::Active)
+                .count()
+        ));
         *self.last_probe() = Some(inventory.clone());
         Ok(inventory)
     }
@@ -99,6 +110,7 @@ impl App {
             .append(true)
             .open(&path)
             .ok()?;
+        self.log(format!("probe failed with exit code {exit_code}, see probe.log"));
         let stamp = chrono::Local::now().format("%Y-%m-%d %H:%M:%S");
         writeln!(file, "{stamp}  probe exited with exit code {exit_code}").ok()?;
         for line in stderr.lines() {
@@ -178,6 +190,11 @@ impl App {
             None => config.layouts.push(layout.clone()),
         }
         self.store.save(&config)?;
+        self.log(format!(
+            "capture {}: {}",
+            layout.name,
+            if index.is_some() { "replaced" } else { "saved" }
+        ));
         Ok(CaptureOutcome::Saved {
             layout: Box::new(layout),
         })
@@ -197,6 +214,7 @@ impl App {
         self.write_switch_script(&mut layout, &config)?;
         config.layouts[index] = layout.clone();
         self.store.save(&config)?;
+        self.log(format!("regenerate script {}", layout.name));
         Ok(layout)
     }
 
@@ -237,21 +255,47 @@ impl App {
             .collect())
     }
 
-    /// Opens a layout's script with whatever Windows associates with `.ps1` files.
-    pub fn open_script(&self, layout_id: &str) -> Result<(), AppError> {
-        let config = self.store.load()?;
-        let layout = config
+    /// The layout with this id, from the config on disk.
+    pub fn find_layout(&self, layout_id: &str) -> Result<Layout, AppError> {
+        self.store
+            .load()?
             .layouts
-            .iter()
+            .into_iter()
             .find(|l| l.id == layout_id)
             .ok_or_else(|| AppError::LayoutNotFound {
                 id: layout_id.to_string(),
-            })?;
-        let path = self.switch_script_path(layout);
+            })
+    }
+
+    /// Opens a layout's script with whatever Windows associates with `.ps1` files.
+    pub fn open_script(&self, layout_id: &str) -> Result<(), AppError> {
+        let path = self.switch_script_path(&self.find_layout(layout_id)?);
         if !path.exists() {
             return Err(AppError::ScriptMissing { path });
         }
-        open_with_default(&path)
+        open_target(path.as_os_str()).map_err(|source| AppError::FileOpen { path, source })
+    }
+
+    /// The layout's `switch.log`, beside its script.
+    pub fn switch_log_path(&self, layout: &Layout) -> PathBuf {
+        self.switch_script_path(layout)
+            .with_file_name(layouts::SWITCH_LOG_NAME)
+    }
+
+    /// Opens a layout's switch log with the system default. A layout that has never
+    /// been switched to has none yet.
+    pub fn open_log(&self, layout_id: &str) -> Result<(), AppError> {
+        let path = self.switch_log_path(&self.find_layout(layout_id)?);
+        if !path.exists() {
+            return Err(AppError::LogMissing { path });
+        }
+        open_target(path.as_os_str()).map_err(|source| AppError::FileOpen { path, source })
+    }
+
+    /// Opens Windows Settings > Display, where the user arranges monitors.
+    pub fn open_display_settings(&self) -> Result<(), AppError> {
+        open_target(std::ffi::OsStr::new(DISPLAY_SETTINGS_URI))
+            .map_err(|source| AppError::SettingsOpen { source })
     }
 
     pub fn switch_script_path(&self, layout: &Layout) -> PathBuf {
@@ -313,23 +357,23 @@ fn now() -> String {
     chrono::Local::now().to_rfc3339()
 }
 
+/// The Settings app's display page.
+pub const DISPLAY_SETTINGS_URI: &str = "ms-settings:display";
+
+/// Opens a file or a URI with whatever Windows associates with it.
 #[cfg(not(test))]
-fn open_with_default(path: &Path) -> Result<(), AppError> {
+fn open_target(target: &std::ffi::OsStr) -> Result<(), std::io::Error> {
     // `start` goes through the shell association; the empty string is the window title.
     std::process::Command::new("cmd")
         .args(["/C", "start", ""])
-        .arg(path)
+        .arg(target)
         .spawn()
         .map(|_| ())
-        .map_err(|source| AppError::ScriptOpen {
-            path: path.to_path_buf(),
-            source,
-        })
 }
 
 #[cfg(test)]
-fn open_with_default(path: &Path) -> Result<(), AppError> {
-    OPENED.with(|o| o.borrow_mut().push(path.to_path_buf()));
+fn open_target(target: &std::ffi::OsStr) -> Result<(), std::io::Error> {
+    OPENED.with(|o| o.borrow_mut().push(PathBuf::from(target)));
     Ok(())
 }
 
@@ -607,6 +651,43 @@ mod tests {
             app.open_script("nope").unwrap_err(),
             AppError::LayoutNotFound { .. }
         ));
+    }
+
+    #[test]
+    fn open_log_opens_the_switch_log_and_says_to_switch_first_when_there_is_none() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        let error = app.open_log(&layout.id).unwrap_err();
+        assert!(matches!(error, AppError::LogMissing { .. }));
+        assert!(error.to_string().starts_with("Switch to the layout once"));
+
+        let log = app.switch_log_path(&layout);
+        fs::write(&log, "2026-09-10 18:00:00  === Switch to Desk ===\n").unwrap();
+        app.open_log(&layout.id).unwrap();
+        assert!(OPENED.with(|o| o.borrow().contains(&log)));
+    }
+
+    #[test]
+    fn open_display_settings_opens_the_settings_uri() {
+        let (_dir, app) = app();
+        app.open_display_settings().unwrap();
+        assert!(OPENED.with(|o| o.borrow().contains(&PathBuf::from(DISPLAY_SETTINGS_URI))));
+    }
+
+    #[test]
+    fn the_app_log_records_probe_capture_and_regenerate_in_the_script_log_shape() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        app.regenerate_script(&layout.id).unwrap();
+        let text = fs::read_to_string(app.app_log_path()).unwrap();
+        assert_eq!(app.app_log_path(), app.root().join("logs").join("layoutswap.log"));
+        let lines: Vec<&str> = text.lines().collect();
+        assert_eq!(lines.len(), 3, "{text}");
+        assert!(lines[0].ends_with("  probe: 5 monitors, 4 active"), "{text}");
+        assert!(lines[1].ends_with("  capture Desk: saved"));
+        assert!(lines[2].ends_with("  regenerate script Desk"));
     }
 
     #[test]

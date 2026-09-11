@@ -9,8 +9,11 @@ import {
   captureLayout,
   loadConfig,
   onSwitchEvent,
+  openDisplaySettings as openDisplaySettingsPage,
+  openLog as openSwitchLog,
   probe as runProbe,
   regenerateScript as regenerate,
+  saveDiagnostics as saveDiagnosticsZip,
   scriptStates as loadScriptStates,
   switchLayout,
 } from '@/tauri/commands';
@@ -31,6 +34,8 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const probeError = ref<string | null>(null);
   /** The switch on screen: running, or finished until Back dismisses it. */
   const switchRun = ref<SwitchRun | null>(null);
+  /** An action on the result screen is in flight, such as the save dialog. */
+  const resultActionBusy = ref(false);
 
   const isEmpty = computed(() => layouts.value.length === 0);
   const listItems = computed(() => layouts.value.map(toListItem));
@@ -128,7 +133,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
       if (switchRun.value === null || switchRun.value.result !== null) {
         throw cause;
       }
-      finishRun({ outcome: 'failed', step: null, stepName: '', nextAction: errorMessage(cause), reason: '', exitCode: -1, logPath: '' });
+      finishRun({ outcome: 'failed', step: null, stepName: '', nextAction: errorMessage(cause), reason: '', exitCode: -1, logPath: '', explanation: { kind: 'none' } });
     } finally {
       unlisten();
     }
@@ -158,6 +163,39 @@ export const useLayoutsStore = defineStore('layouts', () => {
     }
   }
 
+  /**
+   * Runs one action of the finished result screen: Open log, Save diagnostics or
+   * Open Settings > Display. Success may leave a notice; a refusal lands on the run.
+   */
+  async function resultAction(action: 'openLog' | 'saveDiagnostics' | 'openDisplaySettings') {
+    const run = switchRun.value;
+    if (!run || run.result === null || resultActionBusy.value) {
+      return;
+    }
+    resultActionBusy.value = true;
+    run.error = null;
+    run.notice = null;
+    try {
+      switch (action) {
+        case 'openLog':
+          await openSwitchLog(run.layoutId);
+          break;
+        case 'openDisplaySettings':
+          await openDisplaySettingsPage();
+          break;
+        case 'saveDiagnostics': {
+          const path = await saveDiagnosticsZip(run.layoutId);
+          run.notice = path === null ? null : `Diagnostics saved to ${path}`;
+          break;
+        }
+      }
+    } catch (cause) {
+      run.error = errorMessage(cause);
+    } finally {
+      resultActionBusy.value = false;
+    }
+  }
+
   /** Back to the layout: the finished run leaves the content area. */
   function dismissSwitch() {
     if (switchRun.value?.result !== null) {
@@ -182,6 +220,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
     loadError,
     probeError,
     switchRun,
+    resultActionBusy,
     isEmpty,
     listItems,
     selected,
@@ -192,6 +231,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
     regenerateScript,
     switchTo,
     cancelSwitch,
+    resultAction,
     dismissSwitch,
     select,
   };

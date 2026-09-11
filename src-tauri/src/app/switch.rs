@@ -13,11 +13,14 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use super::App;
-use crate::config::layouts::{Layout, SWITCH_LOG_NAME};
+use crate::config::layouts::verify::{verify, VerifyFailure};
+use crate::config::layouts::{self, Layout};
+use crate::config::Config;
 use crate::error::AppError;
+use crate::hardware::MonitorState;
 use crate::script::lock::{self, LOCK_FILE_NAME};
 use crate::script::progress::{parse_progress_line, ProgressLine, StepStatus};
-use crate::script::render::{APPLY_STEP, SWITCH_STEPS};
+use crate::script::render::{ABSENT_REASON_PREFIX, APPLY_STEP, CHECK_STEP, SWITCH_STEPS, VERIFY_STEP};
 use crate::script::run::CancelHandle;
 
 /// What the app tells the webview while a switch runs.
@@ -61,8 +64,27 @@ pub enum SwitchResult {
         exit_code: i32,
         /// `switch.log` in the layout folder.
         log_path: String,
+        explanation: FailureExplanation,
     },
     Cancelled,
+}
+
+/// What a fresh probe says about a failed step, so the result screen can name
+/// monitors and positions instead of quoting the script.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub enum FailureExplanation {
+    /// Check monitors: these on monitors are Absent.
+    Absent { monitors: Vec<String> },
+    /// Verify: the arrangement is not what the layout says. Both lists are empty when
+    /// the probe could not run or found the arrangement settled after the script left.
+    Verify {
+        failures: Vec<VerifyFailure>,
+        warnings: Vec<String>,
+    },
+    /// Nothing beyond the script's own line: another step failed.
+    None,
 }
 
 /// The switch the app is running right now.
@@ -124,6 +146,7 @@ impl App {
             running
         };
         let started = Instant::now();
+        self.log(format!("switch {}: started", layout.name));
         on_event(SwitchEvent::Started {
             layout_id: layout.id.clone(),
             steps: SWITCH_STEPS.iter().map(|s| s.to_string()).collect(),
@@ -165,12 +188,29 @@ impl App {
         // A kill that lands after the script exited with 0 changed nothing: the
         // arrangement applied and verified, and the result says so.
         if exit_code == 0 {
+            self.log(format!(
+                "switch {}: applied in {:.1} s",
+                layout.name,
+                f64::from(duration_ms) / 1000.0
+            ));
             return Ok(SwitchResult::Applied { duration_ms });
         }
         if cancelled {
+            self.log(format!("switch {}: cancelled", layout.name));
             return Ok(SwitchResult::Cancelled);
         }
-        Ok(self.failure(layout, exit_code, last_failed, &last_log))
+        let result = self.failure(layout, &config, exit_code, last_failed, &last_log);
+        if let SwitchResult::Failed {
+            step_name, reason, ..
+        } = &result
+        {
+            self.log(format!(
+                "switch {}: failed at {}: {reason} (exit code {exit_code})",
+                layout.name,
+                if step_name.is_empty() { "start" } else { step_name }
+            ));
+        }
+        Ok(result)
     }
 
     /// Kills the running switch. Refused once the Apply arrangement step has reported.
@@ -210,17 +250,15 @@ impl App {
     fn failure(
         &self,
         layout: &Layout,
+        config: &Config,
         exit_code: i32,
         last_failed: Option<ProgressLine>,
         last_log: &str,
     ) -> SwitchResult {
-        let log_path = self
-            .switch_script_path(layout)
-            .with_file_name(SWITCH_LOG_NAME)
-            .display()
-            .to_string();
+        let log_path = self.switch_log_path(layout).display().to_string();
         match last_failed {
             Some(line) => {
+                let explanation = self.explain(layout, config, &line);
                 let parts = line.failure_parts();
                 SwitchResult::Failed {
                     step: Some(line.step),
@@ -229,6 +267,7 @@ impl App {
                     reason: parts.reason,
                     exit_code,
                     log_path,
+                    explanation,
                 }
             }
             None => SwitchResult::Failed {
@@ -242,9 +281,69 @@ impl App {
                 reason: format!("the script exited with exit code {exit_code}"),
                 exit_code,
                 log_path,
+                explanation: FailureExplanation::None,
             },
         }
     }
+
+    /// A fresh probe explains the check and verify steps: which on monitors are Absent,
+    /// or where the arrangement landed. Other steps explain nothing beyond the script's
+    /// line. When the probe cannot run or disagrees with the script (the monitor came
+    /// back in between), the check step's names come from the script's own reason.
+    fn explain(&self, layout: &Layout, config: &Config, line: &ProgressLine) -> FailureExplanation {
+        let label = layouts::labeller(&config.aliases, &layout.summary.monitors);
+        match line.step {
+            CHECK_STEP => {
+                let from_probe: Vec<String> = self
+                    .probe()
+                    .map(|inventory| {
+                        layout
+                            .summary
+                            .monitors
+                            .iter()
+                            .filter(|m| m.on)
+                            .filter(|m| {
+                                let live = inventory
+                                    .monitors
+                                    .iter()
+                                    .find(|l| l.device_path.eq_ignore_ascii_case(&m.device_path));
+                                live.map_or(true, |l| l.state == MonitorState::Absent)
+                            })
+                            .map(&label)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let monitors = if from_probe.is_empty() {
+                    absent_from_reason(&line.failure_parts().reason)
+                } else {
+                    from_probe
+                };
+                FailureExplanation::Absent { monitors }
+            }
+            VERIFY_STEP => match self.probe() {
+                Ok(inventory) => {
+                    let outcome = verify(&layout.summary, &inventory, label);
+                    FailureExplanation::Verify {
+                        failures: outcome.failures,
+                        warnings: outcome.warnings,
+                    }
+                }
+                Err(_) => FailureExplanation::Verify {
+                    failures: vec![],
+                    warnings: vec![],
+                },
+            },
+            _ => FailureExplanation::None,
+        }
+    }
+}
+
+/// The labels the check step named, from its reason line.
+fn absent_from_reason(reason: &str) -> Vec<String> {
+    reason
+        .strip_prefix(ABSENT_REASON_PREFIX)
+        .map(|names| names.split(", ").map(str::to_string).collect())
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -279,7 +378,7 @@ mod tests {
         "=== Switch to Desk ===",
         "[1/3] running Check monitors",
         "  Ultrawide: Absent",
-        "[1/3] failed Check monitors: press the input button on Ultrawide, or plug it in, then switch again; 1 Absent",
+        "[1/3] failed Check monitors: press the input button on Ultrawide, or plug it in, then switch again; Absent: Ultrawide",
         "Exit code 2",
     ];
 
@@ -392,6 +491,7 @@ mod tests {
                 reason,
                 exit_code,
                 log_path,
+                explanation,
             } => {
                 assert_eq!(step, Some(1));
                 assert_eq!(step_name, "Check monitors");
@@ -399,10 +499,18 @@ mod tests {
                     next_action,
                     "press the input button on Ultrawide, or plug it in, then switch again"
                 );
-                assert_eq!(reason, "1 Absent");
+                assert_eq!(reason, "Absent: Ultrawide");
                 assert_eq!(exit_code, 2);
                 assert!(log_path.ends_with("switch.log"), "{log_path}");
                 assert!(log_path.contains("desk"));
+                // The probe still shows every on monitor present, so the names come from
+                // the script's own line.
+                assert_eq!(
+                    explanation,
+                    FailureExplanation::Absent {
+                        monitors: vec!["Ultrawide".into()]
+                    }
+                );
             }
             other => panic!("expected Failed, got {other:?}"),
         }
@@ -411,6 +519,114 @@ mod tests {
             _ => None,
         });
         assert!(failed.is_some());
+    }
+
+    #[test]
+    fn a_check_failure_names_the_absent_monitors_from_a_fresh_probe() {
+        let (_dir, app, layout, runner) =
+            app_and_runner(FakeScriptRunner::with_stdout(FIVE).streaming(ABSENT, 2));
+        // The Acer went Absent after the capture.
+        let absent = FIVE.replacen(
+            r#""active":true,"available":true,"hasMode":true,"x":0,"y":0,"width":1920,"height":1080"#,
+            r#""active":false,"available":false,"hasMode":false,"x":0,"y":0,"width":0,"height":0"#,
+            1,
+        );
+        assert_ne!(absent, FIVE, "the fixture line the test bends must exist");
+        runner.set_stdout(&absent);
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed {
+                step, explanation, ..
+            } => {
+                assert_eq!(step, Some(1));
+                assert_eq!(
+                    explanation,
+                    FailureExplanation::Absent {
+                        monitors: vec!["KG241Y X1".into()]
+                    }
+                );
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+        let text = fs::read_to_string(app.app_log_path()).unwrap();
+        assert!(text.contains("switch Desk: started"), "{text}");
+        assert!(
+            text.contains("switch Desk: failed at Check monitors: Absent: Ultrawide (exit code 2)"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_verify_failure_states_where_the_monitor_landed_and_where_it_belongs() {
+        let landed = &[
+            "[1/3] running Check monitors",
+            "[1/3] done Check monitors",
+            "[2/3] running Apply arrangement",
+            "[2/3] done Apply arrangement",
+            "[3/3] running Verify",
+            "  warning: KG241Y X1 runs at 75 Hz instead of 60 Hz",
+            "[3/3] failed Verify: arrange the monitors in Windows Settings > Display, then save the layout again; KG241Y X1 landed at 1920,0 instead of 0,0",
+            "Exit code 1",
+        ];
+        let (_dir, app, layout, runner) =
+            app_and_runner(FakeScriptRunner::with_stdout(FIVE).streaming(landed, 1));
+        let moved = FIVE.replacen(
+            r#""hasMode":true,"x":0,"y":0,"width":1920,"height":1080,"refreshNum":60000"#,
+            r#""hasMode":true,"x":1920,"y":0,"width":1920,"height":1080,"refreshNum":75000"#,
+            1,
+        );
+        assert_ne!(moved, FIVE, "the fixture line the test bends must exist");
+        runner.set_stdout(&moved);
+        let (result, events) = collect(&app, &layout.id);
+        match result.unwrap() {
+            SwitchResult::Failed {
+                step,
+                next_action,
+                explanation,
+                ..
+            } => {
+                assert_eq!(step, Some(3));
+                assert!(next_action.starts_with("arrange the monitors in Windows Settings > Display"));
+                assert_eq!(
+                    explanation,
+                    FailureExplanation::Verify {
+                        failures: vec![VerifyFailure::Misplaced {
+                            label: "KG241Y X1".into(),
+                            actual: crate::hardware::Point { x: 1920, y: 0 },
+                            expected: crate::hardware::Point { x: 0, y: 0 },
+                        }],
+                        warnings: vec!["KG241Y X1 runs at 75 Hz instead of 60 Hz".into()],
+                    }
+                );
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+        // The script's warning line reached the log tail, not a failure.
+        assert!(events.iter().any(|e| matches!(
+            e,
+            SwitchEvent::Log { text } if text.contains("warning: KG241Y X1 runs at 75 Hz")
+        )));
+    }
+
+    #[test]
+    fn a_verify_failure_whose_probe_cannot_run_still_reads_as_a_verify_failure() {
+        let landed = &[
+            "[3/3] running Verify",
+            "[3/3] failed Verify: arrange the monitors in Windows Settings > Display, then save the layout again; KG241Y X1 landed at 1920,0 instead of 0,0",
+            "Exit code 1",
+        ];
+        let (_dir, app, layout, runner) =
+            app_and_runner(FakeScriptRunner::with_stdout(FIVE).streaming(landed, 1));
+        runner.set_stdout("not json");
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed { explanation, .. } => assert_eq!(
+                explanation,
+                FailureExplanation::Verify {
+                    failures: vec![],
+                    warnings: vec![]
+                }
+            ),
+            other => panic!("expected Failed, got {other:?}"),
+        }
     }
 
     #[test]

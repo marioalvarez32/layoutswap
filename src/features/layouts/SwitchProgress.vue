@@ -7,18 +7,23 @@ import { useElapsed } from './useElapsed';
 
 const props = defineProps<{
   run: SwitchRun;
+  /** An action on this screen is in flight, such as the save dialog. */
+  busy?: boolean;
 }>();
 
 const emit = defineEmits<{
   cancel: [];
   back: [];
+  openLog: [];
+  saveDiagnostics: [];
+  openDisplaySettings: [];
 }>();
 
 const running = computed(() => props.run.result === null);
 const { elapsedMs } = useElapsed(() => props.run.startedAt, running);
 
 const headline = computed(() => switchHeadline(props.run, elapsedMs.value));
-const failure = computed(() => (props.run.result ? failureBand(props.run.result) : null));
+const failure = computed(() => failureBand(props.run));
 const cancelAllowed = computed(() => canCancel(props.run));
 const steps = computed(() => props.run.steps.map((s) => ({ ...s, tone: stepTone(s.status) })));
 const logText = computed(() => props.run.log.join('\n'));
@@ -32,30 +37,57 @@ const logText = computed(() => props.run.log.join('\n'));
     </header>
 
     <div class="body">
-      <p v-if="failure" class="band crit" role="alert">
+      <div v-if="failure" class="band crit" role="alert">
         <strong class="action">{{ failure.action }}</strong>
         <span class="detail">{{ failure.detail }}</span>
-      </p>
+        <ul v-if="failure.warnings.length > 0" class="warnings">
+          <li v-for="warning in failure.warnings" :key="warning">
+            Also noted: {{ warning }}
+          </li>
+        </ul>
+        <div class="band-actions">
+          <Button
+            v-if="failure.offerDisplaySettings"
+            class="open-settings"
+            :disabled="busy"
+            @click="emit('openDisplaySettings')"
+          >
+            Open Settings &gt; Display
+          </Button>
+          <Button class="open-log" :disabled="busy" @click="emit('openLog')">
+            Open log
+          </Button>
+          <Button class="save-diagnostics" :disabled="busy" @click="emit('saveDiagnostics')">
+            Save diagnostics
+          </Button>
+        </div>
+      </div>
       <p v-if="run.error" class="band warn" role="alert">
         {{ run.error }}
       </p>
+      <p v-if="run.notice" class="notice">
+        {{ run.notice }}
+      </p>
 
-      <ol class="steps">
-        <li
-          v-for="s in steps"
-          :key="s.step"
-          class="step"
-          :class="s.status"
-        >
-          <Chip :tone="s.tone" class="status">
-            {{ s.status }}
-          </Chip>
-          <span class="step-text">{{ s.text }}</span>
-        </li>
-      </ol>
+      <div class="steps-section">
+        <span v-if="failure" class="section-label">Steps that ran</span>
+        <ol class="steps">
+          <li
+            v-for="s in steps"
+            :key="s.step"
+            class="step"
+            :class="s.status"
+          >
+            <Chip :tone="s.tone" class="status">
+              {{ s.status }}
+            </Chip>
+            <span class="step-text">{{ s.text }}</span>
+          </li>
+        </ol>
+      </div>
 
       <div class="log-section">
-        <span class="log-label">Log</span>
+        <span class="section-label">Log</span>
         <pre class="log">{{ logText || 'Waiting for the script to print its first line' }}</pre>
       </div>
 
@@ -135,7 +167,7 @@ h2 {
 .band {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
   padding: var(--space-4);
   border: var(--hairline) solid;
@@ -152,18 +184,49 @@ h2 {
 
 .band.crit .action {
   font-family: var(--display);
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
 .band.crit .detail {
   font-size: var(--text-sm);
   color: var(--ink-2);
+  text-wrap: pretty;
+}
+
+.warnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.band-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding-top: var(--space-2);
 }
 
 .band.warn {
   border-color: var(--warn);
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+.notice {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.steps-section,
+.log-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .steps {
@@ -209,13 +272,7 @@ h2 {
   text-wrap: pretty;
 }
 
-.log-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.log-label {
+.section-label {
   font-family: var(--data);
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-label);

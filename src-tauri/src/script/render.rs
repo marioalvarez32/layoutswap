@@ -25,8 +25,9 @@
 //! see [`super::progress`] for the parser. The steps are [`SWITCH_STEPS`], in that
 //! order, and a cancel is refused from [`APPLY_STEP`] on. A failed line's text is
 //! `<step name>: <next action>; <reason>`, with ` (Windows error N)` appended when a
-//! code exists; [`super::progress::ProgressLine::failure_parts`] splits it. Every
-//! other line is log.
+//! code exists; [`super::progress::ProgressLine::failure_parts`] splits it. The
+//! check step's reason is `Absent: <label>, <label>`, so the app can name the
+//! monitors even when its own probe cannot. Every other line is log.
 //!
 //! # Exit codes
 //!
@@ -46,13 +47,19 @@ use serde::Serialize;
 use crate::config::layouts::{monitor_labels, Layout};
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 2;
+pub const TEMPLATE_VERSION: u32 = 3;
 
 /// The steps of the switch script, in order, as its header lists them. The template
 /// defines them; the tests below pin the two to each other.
 pub const SWITCH_STEPS: [&str; 3] = ["Check monitors", "Apply arrangement", "Verify"];
 /// The one-based step from which a cancel is refused: the arrangement is changing.
 pub const APPLY_STEP: u32 = 2;
+/// The step that names Absent monitors, and the one that compares the arrangement.
+pub const CHECK_STEP: u32 = 1;
+pub const VERIFY_STEP: u32 = 3;
+/// The prefix of the check step's failure reason, followed by the labels joined by
+/// a comma and a space.
+pub const ABSENT_REASON_PREFIX: &str = "Absent: ";
 
 /// Rendered script text, ready to be written to disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -354,6 +361,7 @@ mod tests {
             SWITCH_STEPS[APPLY_STEP as usize - 1]
         )));
         assert!(text.contains("[Console]::OutputEncoding"));
+        assert!(text.contains(&format!("(\"{ABSENT_REASON_PREFIX}{{0}}\" -f ($absent -join ', '))")), "{text}");
         let mut seen = 0;
         for line in text.lines() {
             let Some(rest) = line.trim_start().strip_prefix("Write-Step ") else {

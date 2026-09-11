@@ -56,6 +56,24 @@ export function cancelSwitch(): Promise<void> {
   return invoke<void>('cancel_switch');
 }
 
+/** Opens a layout's switch log with the system default. */
+export function openLog(layoutId: string): Promise<void> {
+  return invoke<void>('open_log', { layoutId });
+}
+
+/** Opens Windows Settings > Display. */
+export function openDisplaySettings(): Promise<void> {
+  return invoke<void>('open_display_settings');
+}
+
+/**
+ * Asks where to save a layout's diagnostics zip and writes it. Resolves with the
+ * path, or null when the user cancelled the dialog.
+ */
+export function saveDiagnostics(layoutId: string): Promise<string | null> {
+  return invoke<string | null>('save_diagnostics', { layoutId });
+}
+
 /** The event name `commands::SWITCH_EVENT` emits on. */
 const SWITCH_EVENT = 'switch-event';
 

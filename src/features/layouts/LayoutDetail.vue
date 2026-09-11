@@ -69,6 +69,9 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
         <Button :disabled="script.busy.value" @click="script.open">
           Open script
         </Button>
+        <Button :disabled="script.busy.value" @click="script.openSwitchLog">
+          Open log
+        </Button>
         <Button :disabled="script.busy.value" @click="script.regenerate">
           Regenerate script
         </Button>

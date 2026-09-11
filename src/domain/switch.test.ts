@@ -4,6 +4,7 @@ import {
   appendLog,
   applyProgress,
   canCancel,
+  describeVerifyFailure,
   failureBand,
   formatSeconds,
   newSwitchRun,
@@ -22,6 +23,20 @@ function line(step: number, status: ProgressLine['status'], text: string): Progr
   return { step, of: 3, status, text };
 }
 
+function failed(overrides: Partial<Extract<SwitchResult, { outcome: 'failed' }>> = {}): SwitchResult {
+  return {
+    outcome: 'failed',
+    step: 1,
+    stepName: 'Check monitors',
+    nextAction: 'x',
+    reason: 'y',
+    exitCode: 2,
+    logPath: 'C:/x/switch.log',
+    explanation: { kind: 'none' },
+    ...overrides,
+  };
+}
+
 describe('newSwitchRun', () => {
   it('lists every step as waiting under its name', () => {
     const r = run();
@@ -32,6 +47,7 @@ describe('newSwitchRun', () => {
     ]);
     expect(r.log).toEqual([]);
     expect(r.result).toBeNull();
+    expect(r.notice).toBeNull();
   });
 });
 
@@ -114,39 +130,113 @@ describe('switchHeadline', () => {
   });
 
   it('says how long a failed or cancelled switch ran', () => {
-    const failed: SwitchResult = { outcome: 'failed', step: 1, stepName: 'Check monitors', nextAction: 'x', reason: 'y', exitCode: 2, logPath: 'C:/x/switch.log' };
-    expect(switchHeadline(run({ result: failed, finishedAt: 4_200 }), 0)).toEqual({ title: 'Could not switch to Desk', aside: 'Stopped after 3.2 s', tone: 'crit' });
+    expect(switchHeadline(run({ result: failed(), finishedAt: 4_200 }), 0)).toEqual({ title: 'Could not switch to Desk', aside: 'Stopped after 3.2 s', tone: 'crit' });
     expect(switchHeadline(run({ result: { outcome: 'cancelled' }, finishedAt: 2_000 }), 0)).toEqual({ title: 'Switch to Desk cancelled', aside: 'Stopped after 1.0 s', tone: 'mute' });
   });
 });
 
+describe('describeVerifyFailure', () => {
+  it('reads like the script log line', () => {
+    expect(describeVerifyFailure({ kind: 'misplaced', label: 'Side', actual: { x: 3440, y: 0 }, expected: { x: 3440, y: 180 } })).toBe('Side landed at 3440,0 instead of 3440,180');
+    expect(describeVerifyFailure({ kind: 'wrongSize', label: 'Side', actual: { width: 1920, height: 1200 }, expected: { width: 1920, height: 1080 } })).toBe('Side is 1920x1200 instead of 1920x1080');
+    expect(describeVerifyFailure({ kind: 'notOn', label: 'Side' })).toBe('Side is not on');
+    expect(describeVerifyFailure({ kind: 'onButShouldBeOff', label: 'Ultrawide' })).toBe('Ultrawide is on but should be off');
+    expect(describeVerifyFailure({ kind: 'extra', name: 'TV' })).toBe('an extra monitor is on: TV');
+  });
+});
+
 describe('failureBand', () => {
-  it('puts the next action first as a sentence, then the step and reason', () => {
-    const band = failureBand({
-      outcome: 'failed',
-      step: 1,
-      stepName: 'Check monitors',
-      nextAction: 'press the input button on Ultrawide, or plug it in, then switch again',
-      reason: '1 Absent',
-      exitCode: 2,
-      logPath: 'C:/x/switch.log',
-    });
+  it('leads a check failure with the physical action and lists the Absent monitors', () => {
+    const band = failureBand(run({
+      result: failed({
+        nextAction: 'press the input button on Side and Ultrawide, or plug them in, then switch again',
+        reason: '2 Absent',
+        explanation: { kind: 'absent', monitors: ['Side', 'Ultrawide'] },
+      }),
+    }));
     expect(band).toEqual({
-      action: 'Press the input button on Ultrawide, or plug it in, then switch again.',
-      detail: 'Check monitors failed: 1 Absent (exit code 2).',
+      action: 'Press the input button on Side and Ultrawide, or plug them in, then switch again.',
+      detail: 'Absent: Side, Ultrawide. Check monitors stopped the switch (exit code 2).',
+      offerDisplaySettings: false,
+      warnings: [],
+    });
+  });
+
+  it('leads a verify failure with Settings > Display and says where the monitor landed', () => {
+    const band = failureBand(run({
+      layoutName: 'Console',
+      result: failed({
+        step: 3,
+        stepName: 'Verify',
+        nextAction: 'arrange the monitors in Windows Settings > Display, then save the layout again',
+        reason: 'Side landed at 3440,0 instead of 3440,180',
+        exitCode: 1,
+        explanation: {
+          kind: 'verify',
+          failures: [{ kind: 'misplaced', label: 'Side', actual: { x: 3440, y: 0 }, expected: { x: 3440, y: 180 } }],
+          warnings: ['Side runs at 75 Hz instead of 60 Hz'],
+        },
+      }),
+    }));
+    expect(band).toEqual({
+      action: 'Arrange it in Settings > Display, then Save current layout again.',
+      detail: 'Switch to Console applied, but Side landed at 3440,0 instead of 3440,180. layoutswap does not move monitors.',
+      offerDisplaySettings: true,
+      warnings: ['Side runs at 75 Hz instead of 60 Hz'],
+    });
+  });
+
+  it('still leads a verify failure with Settings > Display when the probe found nothing, from the script line', () => {
+    const band = failureBand(run({
+      result: failed({
+        step: 3,
+        stepName: 'Verify',
+        nextAction: 'arrange the monitors in Windows Settings > Display, then save the layout again',
+        reason: 'Side landed at 3440,0 instead of 3440,180',
+        exitCode: 1,
+        explanation: { kind: 'verify', failures: [], warnings: [] },
+      }),
+    }));
+    expect(band).toMatchObject({
+      action: 'Arrange it in Settings > Display, then Save current layout again.',
+      detail: 'Switch to Desk applied, but Side landed at 3440,0 instead of 3440,180. layoutswap does not move monitors.',
+      offerDisplaySettings: true,
+    });
+  });
+
+  it('falls back to the script line for other steps', () => {
+    const band = failureBand(run({
+      result: failed({
+        step: 2,
+        stepName: 'Apply arrangement',
+        nextAction: 'try the switch again',
+        reason: 'Windows could not apply the arrangement, bad configuration (Windows error 1610)',
+        exitCode: 1,
+      }),
+    }));
+    expect(band).toEqual({
+      action: 'Try the switch again.',
+      detail: 'Apply arrangement failed: Windows could not apply the arrangement, bad configuration (Windows error 1610) (exit code 1).',
+      offerDisplaySettings: false,
+      warnings: [],
     });
   });
 
   it('explains a script that stopped outside a step', () => {
-    const band = failureBand({ outcome: 'failed', step: null, stepName: '', nextAction: 'Wait for the switch to Film to finish, then try again.', reason: 'the script exited with exit code 2', exitCode: 2, logPath: '' });
+    const band = failureBand(run({
+      result: failed({ step: null, stepName: '', nextAction: 'Wait for the switch to Film to finish, then try again.', reason: 'the script exited with exit code 2' }),
+    }));
     expect(band).toEqual({
       action: 'Wait for the switch to Film to finish, then try again.',
       detail: 'The script exited with exit code 2.',
+      offerDisplaySettings: false,
+      warnings: [],
     });
   });
 
-  it('is empty for an applied or cancelled result', () => {
-    expect(failureBand({ outcome: 'applied', durationMs: 1 })).toBeNull();
-    expect(failureBand({ outcome: 'cancelled' })).toBeNull();
+  it('is empty while running and for an applied or cancelled result', () => {
+    expect(failureBand(run())).toBeNull();
+    expect(failureBand(run({ result: { outcome: 'applied', durationMs: 1 } }))).toBeNull();
+    expect(failureBand(run({ result: { outcome: 'cancelled' } }))).toBeNull();
   });
 });

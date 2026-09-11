@@ -1,12 +1,13 @@
 import { computed, ref, toValue, type MaybeRefOrGetter } from 'vue';
 import { errorMessage } from '@/domain/errors';
 import { scriptIndicator, stateOf } from '@/domain/script-state';
-import { openScript } from '@/tauri/commands';
+import { openLog, openScript } from '@/tauri/commands';
 import { useLayoutsStore } from './layouts.store';
 
 /**
  * The generated script of one layout as the detail shows it: the indicator line, and
- * the Open script and Regenerate script actions with their in-flight and error state.
+ * the Open script, Open log and Regenerate script actions with their in-flight and
+ * error state.
  */
 export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
   const store = useLayoutsStore();
@@ -18,6 +19,10 @@ export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
 
   async function open() {
     await run(() => openScript(toValue(layoutId)));
+  }
+
+  async function openSwitchLog() {
+    await run(() => openLog(toValue(layoutId)));
   }
 
   async function regenerate() {
@@ -39,5 +44,5 @@ export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
     }
   }
 
-  return { indicator, busy, error, open, regenerate };
+  return { indicator, busy, error, open, openSwitchLog, regenerate };
 }

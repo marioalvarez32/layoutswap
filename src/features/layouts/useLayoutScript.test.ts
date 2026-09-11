@@ -1,6 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openScript, regenerateScript, scriptStates } from '@/tauri/commands';
+import { openLog, openScript, regenerateScript, scriptStates } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { withSetup } from '@/test/withSetup';
 import { useLayoutsStore } from './layouts.store';
@@ -41,6 +41,12 @@ describe('useLayoutScript', () => {
     const { result } = withSetup(() => useLayoutScript('layout-desk'));
     await result.open();
     expect(openScript).toHaveBeenCalledWith('layout-desk');
+  });
+
+  it('opens the switch log', async () => {
+    const { result } = withSetup(() => useLayoutScript('layout-desk'));
+    await result.openSwitchLog();
+    expect(openLog).toHaveBeenCalledWith('layout-desk');
   });
 
   it('reports a failure where it happened', async () => {

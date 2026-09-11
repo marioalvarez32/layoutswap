@@ -1,4 +1,4 @@
-import type { ProgressLine, StepStatus, SwitchResult } from '@/domain/generated/types';
+import type { ProgressLine, StepStatus, SwitchResult, VerifyFailure } from '@/domain/generated/types';
 
 /** A step's chip: the script's four statuses, plus waiting before it reports. */
 export type StepChip = 'waiting' | StepStatus;
@@ -27,8 +27,10 @@ export interface SwitchRun {
   finishedAt: number | null;
   /** A cancel has been sent and the script has not exited yet. */
   cancelling: boolean;
-  /** A cancel the app refused, shown beside the button. */
+  /** The last action on this screen the app refused, shown beside the buttons. */
   error: string | null;
+  /** The last thing an action on this screen did, such as where diagnostics went. */
+  notice: string | null;
 }
 
 export const LOG_TAIL_LINES = 5;
@@ -50,6 +52,7 @@ export function newSwitchRun(
     finishedAt: null,
     cancelling: false,
     error: null,
+    notice: null,
   };
 }
 
@@ -120,24 +123,75 @@ export function switchHeadline(run: SwitchRun, elapsedMs: number): SwitchHeadlin
   }
 }
 
+/** The same line the script and the Rust side print for a verify failure. */
+export function describeVerifyFailure(failure: VerifyFailure): string {
+  switch (failure.kind) {
+    case 'notOn':
+      return `${failure.label} is not on`;
+    case 'onButShouldBeOff':
+      return `${failure.label} is on but should be off`;
+    case 'misplaced':
+      return `${failure.label} landed at ${failure.actual.x},${failure.actual.y} instead of ${failure.expected.x},${failure.expected.y}`;
+    case 'wrongSize':
+      return `${failure.label} is ${failure.actual.width}x${failure.actual.height} instead of ${failure.expected.width}x${failure.expected.height}`;
+    case 'extra':
+      return `an extra monitor is on: ${failure.name}`;
+  }
+}
+
 export interface FailureBand {
   /** The next action, as a sentence. */
   action: string;
   /** What went wrong, with the step it happened in. */
   detail: string;
+  /** Whether the fix lives in Windows Settings > Display. */
+  offerDisplaySettings: boolean;
+  /** Refresh, rotation and scale differences verify noted without failing. */
+  warnings: string[];
 }
 
-/** The band a failed result shows: what to do next first, then what went wrong. */
-export function failureBand(result: SwitchResult): FailureBand | null {
-  if (result.outcome !== 'failed') {
+/**
+ * The band a failed result shows: what to do next first, then what went wrong.
+ * A verify failure leads with Settings > Display and says that layoutswap does not
+ * move monitors; a check failure leads with the physical action the script named.
+ */
+export function failureBand(run: SwitchRun): FailureBand | null {
+  const result = run.result;
+  if (result?.outcome !== 'failed') {
     return null;
   }
+  const exit = `(exit code ${result.exitCode})`;
+  if (result.explanation.kind === 'verify') {
+    // The probe's own reading when it has one, else the script's line.
+    const landed = result.explanation.failures.length > 0
+      ? result.explanation.failures.map(describeVerifyFailure).join('; ')
+      : result.reason || 'the arrangement is not what the layout says';
+    return {
+      action: 'Arrange it in Settings > Display, then Save current layout again.',
+      detail: `Switch to ${run.layoutName} applied, but ${landed}. layoutswap does not move monitors.`,
+      offerDisplaySettings: true,
+      warnings: result.explanation.warnings,
+    };
+  }
   const action = sentence(result.nextAction || 'Open the log, then try the switch again');
+  if (result.explanation.kind === 'absent' && result.explanation.monitors.length > 0) {
+    return {
+      action,
+      detail: `Absent: ${result.explanation.monitors.join(', ')}. ${result.stepName} stopped the switch ${exit}.`,
+      offerDisplaySettings: false,
+      warnings: [],
+    };
+  }
   if (!result.stepName) {
-    return { action, detail: sentence(result.reason || `the script exited with exit code ${result.exitCode}`) };
+    return {
+      action,
+      detail: sentence(result.reason || `the script exited with exit code ${result.exitCode}`),
+      offerDisplaySettings: false,
+      warnings: [],
+    };
   }
   const reason = result.reason ? `: ${result.reason}` : '';
-  return { action, detail: `${result.stepName} failed${reason} (exit code ${result.exitCode}).` };
+  return { action, detail: `${result.stepName} failed${reason} ${exit}.`, offerDisplaySettings: false, warnings: [] };
 }
 
 function sentence(text: string): string {

@@ -193,7 +193,7 @@ impl RunningScript for PowerShellProcess {
 #[cfg(test)]
 #[derive(Debug, Default)]
 pub struct FakeScriptRunner {
-    pub output: ScriptOutput,
+    output: Mutex<ScriptOutput>,
     pub calls: std::sync::Mutex<Vec<(std::path::PathBuf, Vec<String>)>>,
     stream: Option<(Vec<String>, i32)>,
     pause: Option<(usize, Arc<Gate>)>,
@@ -244,9 +244,18 @@ impl Gate {
 impl FakeScriptRunner {
     pub fn returning(output: ScriptOutput) -> Self {
         FakeScriptRunner {
-            output,
+            output: Mutex::new(output),
             ..Default::default()
         }
+    }
+
+    /// What `run` returns from now on, for a test whose probe changes mid-way.
+    pub fn set_stdout(&self, stdout: &str) {
+        *self.output.lock().unwrap() = ScriptOutput {
+            exit_code: 0,
+            stdout: stdout.to_string(),
+            stderr: String::new(),
+        };
     }
 
     pub fn with_stdout(stdout: &str) -> Self {
@@ -279,7 +288,7 @@ impl ScriptRunner for FakeScriptRunner {
             .lock()
             .unwrap()
             .push((script.to_path_buf(), args.to_vec()));
-        Ok(self.output.clone())
+        Ok(self.output.lock().unwrap().clone())
     }
 
     fn start(&self, script: &Path, args: &[String]) -> Result<Box<dyn RunningScript>, AppError> {
@@ -289,10 +298,13 @@ impl ScriptRunner for FakeScriptRunner {
             .push((script.to_path_buf(), args.to_vec()));
         let (lines, exit_code) = match &self.stream {
             Some((lines, exit_code)) => (lines.clone(), *exit_code),
-            None => (
-                self.output.stdout.lines().map(str::to_string).collect(),
-                self.output.exit_code,
-            ),
+            None => {
+                let output = self.output.lock().unwrap();
+                (
+                    output.stdout.lines().map(str::to_string).collect(),
+                    output.exit_code,
+                )
+            }
         };
         let (pause_after, gate) = match &self.pause {
             Some((after, gate)) => (Some(*after), Arc::clone(gate)),

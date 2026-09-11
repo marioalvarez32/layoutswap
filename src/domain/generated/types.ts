@@ -35,6 +35,12 @@ window: WindowSize,
 aliases: { [key in string]: string }, layouts: Array<Layout>, };
 
 /**
+ * What a fresh probe says about a failed step, so the result screen can name
+ * monitors and positions instead of quoting the script.
+ */
+export type FailureExplanation = { "kind": "absent", monitors: Array<string>, } | { "kind": "verify", failures: Array<VerifyFailure>, warnings: Array<string>, } | { "kind": "none" };
+
+/**
  * What the probe found: every monitor Windows knows about and the arrangement of the
  * active ones, as the raw display-config arrays needed to apply it again (ADR-0006).
  */
@@ -171,7 +177,13 @@ step: number | null, stepName: string, nextAction: string, reason: string, exitC
 /**
  * `switch.log` in the layout folder.
  */
-logPath: string, } | { "outcome": "cancelled" };
+logPath: string, explanation: FailureExplanation, } | { "outcome": "cancelled" };
+
+/**
+ * One way the arrangement differs from the layout. `Display` gives the same line the
+ * script prints, so the app and the log read alike.
+ */
+export type VerifyFailure = { "kind": "notOn", label: string, } | { "kind": "onButShouldBeOff", label: string, } | { "kind": "misplaced", label: string, actual: Point, expected: Point, } | { "kind": "wrongSize", label: string, actual: Size, expected: Size, } | { "kind": "extra", name: string, };
 
 /**
  * A window size in logical pixels.

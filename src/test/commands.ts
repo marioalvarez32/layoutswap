@@ -32,5 +32,8 @@ export function commandsMock(): typeof commands {
     switchLayout: vi.fn<typeof commands.switchLayout>().mockResolvedValue({ outcome: 'applied', durationMs: 11_400 }),
     cancelSwitch: vi.fn<typeof commands.cancelSwitch>().mockResolvedValue(undefined),
     onSwitchEvent: vi.fn<typeof commands.onSwitchEvent>().mockResolvedValue(() => {}),
+    openLog: vi.fn<typeof commands.openLog>().mockResolvedValue(undefined),
+    openDisplaySettings: vi.fn<typeof commands.openDisplaySettings>().mockResolvedValue(undefined),
+    saveDiagnostics: vi.fn<typeof commands.saveDiagnostics>().mockResolvedValue('C:/Users/x/Desktop/layoutswap-diagnostics-desk-20260910-183012.zip'),
   };
 }

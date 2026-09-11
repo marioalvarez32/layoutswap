@@ -11,12 +11,14 @@
 //! - `script::render`: templates -> Script text. The deep module.
 //! - `script::run`: the `ScriptRunner` trait and the only place `powershell.exe` is spawned.
 //! - `script::lock`: the `switch.lock` file a running switch script holds.
+//! - `dialog`: the one place a native file dialog is shown.
 //! - `hardware`: `probe() -> Inventory` through a `ScriptRunner`.
 //! - `shortcuts`: per-layout `.lnk` files and the scheduled task, through generated scripts.
 
 pub mod app;
 pub mod commands;
 pub mod config;
+pub mod dialog;
 pub mod error;
 pub mod hardware;
 pub mod script;
@@ -69,7 +71,10 @@ pub fn run() {
             commands::regenerate_script,
             commands::open_script,
             commands::switch_layout,
-            commands::cancel_switch
+            commands::cancel_switch,
+            commands::open_log,
+            commands::open_display_settings,
+            commands::save_diagnostics
         ])
         .run(tauri::generate_context!())
         .expect("layoutswap failed to start");

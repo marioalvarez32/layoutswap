@@ -5,13 +5,72 @@
 //! each on monitor's position and size must match; refresh, rotation and scale
 //! differences are warnings.
 
-use super::{Summary, SummaryMonitor};
-use crate::hardware::{Inventory, Monitor, MonitorState};
+use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+use serde::Serialize;
+use ts_rs::TS;
+
+use super::{Summary, SummaryMonitor};
+use crate::hardware::{Inventory, Monitor, MonitorState, Point, Size};
+
+/// One way the arrangement differs from the layout. `Display` gives the same line the
+/// script prints, so the app and the log read alike.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub enum VerifyFailure {
+    /// An on monitor Windows is not drawing to.
+    NotOn { label: String },
+    OnButShouldBeOff { label: String },
+    /// The monitor is on but sits elsewhere than the layout says.
+    Misplaced {
+        label: String,
+        actual: Point,
+        expected: Point,
+    },
+    WrongSize {
+        label: String,
+        actual: Size,
+        expected: Size,
+    },
+    /// A monitor the layout never saw is on.
+    Extra { name: String },
+}
+
+impl fmt::Display for VerifyFailure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            VerifyFailure::NotOn { label } => write!(f, "{label} is not on"),
+            VerifyFailure::OnButShouldBeOff { label } => {
+                write!(f, "{label} is on but should be off")
+            }
+            VerifyFailure::Misplaced {
+                label,
+                actual,
+                expected,
+            } => write!(
+                f,
+                "{label} landed at {},{} instead of {},{}",
+                actual.x, actual.y, expected.x, expected.y
+            ),
+            VerifyFailure::WrongSize {
+                label,
+                actual,
+                expected,
+            } => write!(
+                f,
+                "{label} is {}x{} instead of {}x{}",
+                actual.width, actual.height, expected.width, expected.height
+            ),
+            VerifyFailure::Extra { name } => write!(f, "an extra monitor is on: {name}"),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct VerifyOutcome {
     /// What makes the switch not applied. Empty when it passed.
-    pub failures: Vec<String>,
+    pub failures: Vec<VerifyFailure>,
     /// Differences that do not fail the switch.
     pub warnings: Vec<String>,
 }
@@ -42,13 +101,13 @@ pub fn verify(
         let is_active = actual.is_some_and(|m| m.state == MonitorState::Active);
         match (expected.on, is_active) {
             (true, false) => {
-                outcome.failures.push(format!("{name} is not on"));
+                outcome.failures.push(VerifyFailure::NotOn { label: name });
                 continue;
             }
             (false, true) => {
                 outcome
                     .failures
-                    .push(format!("{name} is on but should be off"));
+                    .push(VerifyFailure::OnButShouldBeOff { label: name });
                 continue;
             }
             (false, false) => continue,
@@ -56,17 +115,23 @@ pub fn verify(
         }
         let actual = actual.expect("active monitors come from the inventory");
         match (expected.position, actual.position) {
-            (Some(want), Some(got)) if want != got => outcome.failures.push(format!(
-                "{name} landed at {},{} instead of {},{}",
-                got.x, got.y, want.x, want.y
-            )),
+            (Some(want), Some(got)) if want != got => {
+                outcome.failures.push(VerifyFailure::Misplaced {
+                    label: name.clone(),
+                    actual: got,
+                    expected: want,
+                })
+            }
             _ => {}
         }
         match (expected.size, actual.size) {
-            (Some(want), Some(got)) if want != got => outcome.failures.push(format!(
-                "{name} is {}x{} instead of {}x{}",
-                got.width, got.height, want.width, want.height
-            )),
+            (Some(want), Some(got)) if want != got => {
+                outcome.failures.push(VerifyFailure::WrongSize {
+                    label: name.clone(),
+                    actual: got,
+                    expected: want,
+                })
+            }
             _ => {}
         }
         match (expected.refresh_hz, actual.refresh_hz) {
@@ -96,9 +161,9 @@ pub fn verify(
             .iter()
             .any(|m| m.device_path.eq_ignore_ascii_case(&monitor.device_path));
         if monitor.state == MonitorState::Active && !known {
-            outcome
-                .failures
-                .push(format!("an extra monitor is on: {}", monitor.reported_name));
+            outcome.failures.push(VerifyFailure::Extra {
+                name: monitor.reported_name.clone(),
+            });
         }
     }
     outcome
@@ -108,7 +173,7 @@ pub fn verify(
 mod tests {
     use super::*;
     use crate::config::layouts::summarise;
-    use crate::hardware::{parse, Point, Size};
+    use crate::hardware::parse;
 
     const FIVE: &str = include_str!("../../hardware/fixtures/five-monitors.json");
 
@@ -119,6 +184,10 @@ mod tests {
 
     fn name(m: &SummaryMonitor) -> String {
         m.reported_name.clone()
+    }
+
+    fn texts(outcome: &VerifyOutcome) -> Vec<String> {
+        outcome.failures.iter().map(ToString::to_string).collect()
     }
 
     fn active_mut<'a>(inventory: &'a mut Inventory, fragment: &str) -> &'a mut Monitor {
@@ -138,12 +207,20 @@ mod tests {
     }
 
     #[test]
-    fn position_drift_fails_and_states_both_positions() {
+    fn position_drift_fails_with_both_positions() {
         let (summary, mut inventory) = fixture();
         active_mut(&mut inventory, "ACR0EC4").position = Some(Point { x: 1920, y: 0 });
         let outcome = verify(&summary, &inventory, name);
         assert_eq!(
             outcome.failures,
+            vec![VerifyFailure::Misplaced {
+                label: "KG241Y X1".into(),
+                actual: Point { x: 1920, y: 0 },
+                expected: Point { x: 0, y: 0 },
+            }]
+        );
+        assert_eq!(
+            texts(&outcome),
             vec!["KG241Y X1 landed at 1920,0 instead of 0,0"]
         );
     }
@@ -157,7 +234,7 @@ mod tests {
         });
         let outcome = verify(&summary, &inventory, name);
         assert_eq!(
-            outcome.failures,
+            texts(&outcome),
             vec!["Built-in display is 1920x1200 instead of 2560x1600"]
         );
     }
@@ -173,7 +250,7 @@ mod tests {
             height: 1440,
         });
         let outcome = verify(&summary, &inventory, name);
-        assert_eq!(outcome.failures, vec!["VG34VQEL1A is on but should be off"]);
+        assert_eq!(texts(&outcome), vec!["VG34VQEL1A is on but should be off"]);
     }
 
     #[test]
@@ -184,7 +261,7 @@ mod tests {
         acer.position = None;
         acer.size = None;
         let outcome = verify(&summary, &inventory, name);
-        assert_eq!(outcome.failures, vec!["KG241Y X1 is not on"]);
+        assert_eq!(texts(&outcome), vec!["KG241Y X1 is not on"]);
     }
 
     #[test]
@@ -195,42 +272,42 @@ mod tests {
         extra.reported_name = "TV".into();
         inventory.monitors.push(extra);
         let outcome = verify(&summary, &inventory, name);
-        assert_eq!(outcome.failures, vec!["an extra monitor is on: TV"]);
+        assert_eq!(texts(&outcome), vec!["an extra monitor is on: TV"]);
     }
 
     #[test]
-    fn a_refresh_only_difference_warns_without_failing() {
+    fn refresh_rotation_and_scale_differences_are_warnings() {
         let (summary, mut inventory) = fixture();
-        active_mut(&mut inventory, "ACR0EC4").refresh_hz = Some(59.94);
-        let outcome = verify(&summary, &inventory, name);
-        assert!(outcome.passed(), "{outcome:?}");
-        assert_eq!(
-            outcome.warnings,
-            vec!["KG241Y X1 runs at 59.94 Hz instead of 60 Hz"]
-        );
-    }
-
-    #[test]
-    fn rotation_and_scale_differences_warn() {
-        let (summary, mut inventory) = fixture();
-        let built_in = active_mut(&mut inventory, "EDO4245");
-        built_in.rotation = Some(90);
-        built_in.scale_percent = Some(100);
+        let acer = active_mut(&mut inventory, "ACR0EC4");
+        acer.refresh_hz = Some(75.0);
+        acer.rotation = Some(90);
+        acer.scale_percent = Some(125);
         let outcome = verify(&summary, &inventory, name);
         assert!(outcome.passed());
-        assert_eq!(outcome.warnings.len(), 2);
-        assert!(outcome.warnings[0].contains("rotated 90 instead of 0"));
-        assert!(outcome.warnings[1].contains("scaled 100% instead of 150%"));
+        assert_eq!(
+            outcome.warnings,
+            vec![
+                "KG241Y X1 runs at 75 Hz instead of 60 Hz",
+                "KG241Y X1 is rotated 90 instead of 0",
+                "KG241Y X1 is scaled 125% instead of 100%",
+            ]
+        );
     }
 
     #[test]
-    fn uses_the_label_the_caller_supplies() {
+    fn the_label_names_the_monitor_in_every_line() {
         let (summary, mut inventory) = fixture();
-        active_mut(&mut inventory, "ACR0EC4").position = Some(Point { x: 1, y: 1 });
-        let outcome = verify(&summary, &inventory, |m| format!("<{}>", m.connector));
-        assert_eq!(
-            outcome.failures,
-            vec!["<HDMI> landed at 1,1 instead of 0,0"]
-        );
+        active_mut(&mut inventory, "ACR0EC4").position = Some(Point { x: 5, y: 5 });
+        let outcome = verify(&summary, &inventory, |m| format!("<{}>", m.reported_name));
+        assert_eq!(texts(&outcome), vec!["<KG241Y X1> landed at 5,5 instead of 0,0"]);
+    }
+
+    #[test]
+    fn device_paths_compare_without_case() {
+        let (summary, mut inventory) = fixture();
+        for m in &mut inventory.monitors {
+            m.device_path = m.device_path.to_uppercase();
+        }
+        assert!(verify(&summary, &inventory, name).passed());
     }
 }

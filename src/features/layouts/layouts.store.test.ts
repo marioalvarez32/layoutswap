@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, onSwitchEvent, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, switchLayout } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -133,6 +133,35 @@ describe('layouts store: switch', () => {
     expect(store.switchRun!.error).toContain('cannot be stopped');
     expect(store.switchRun!.cancelling).toBe(false);
     expect(store.switchRun!.result).toBeNull();
+  });
+
+  it('runs the result actions against the finished run and keeps what they said', async () => {
+    const store = useLayoutsStore();
+    const script = scriptedSwitch();
+    const pending = store.switchTo('layout-desk');
+    await flushPromises();
+    script.emit(STARTED);
+    await store.resultAction('openLog');
+    expect(openLog).not.toHaveBeenCalled();
+
+    script.finish({ outcome: 'failed', step: 1, stepName: 'Check monitors', nextAction: 'x', reason: 'y', exitCode: 2, logPath: 'C:/x/switch.log', explanation: { kind: 'absent', monitors: ['Ultrawide'] } });
+    await pending;
+    await store.resultAction('openLog');
+    expect(openLog).toHaveBeenCalledWith('layout-desk');
+    await store.resultAction('openDisplaySettings');
+    expect(openDisplaySettings).toHaveBeenCalledTimes(1);
+    await store.resultAction('saveDiagnostics');
+    expect(saveDiagnostics).toHaveBeenCalledWith('layout-desk');
+    expect(store.switchRun!.notice).toBe('Diagnostics saved to C:/Users/x/Desktop/layoutswap-diagnostics-desk-20260910-183012.zip');
+    expect(store.resultActionBusy).toBe(false);
+
+    vi.mocked(saveDiagnostics).mockResolvedValueOnce(null);
+    await store.resultAction('saveDiagnostics');
+    expect(store.switchRun!.notice).toBeNull();
+
+    vi.mocked(openLog).mockRejectedValueOnce({ message: 'Switch to the layout once, then open its log: C:/x/switch.log is not on disk yet.', logPath: null });
+    await store.resultAction('openLog');
+    expect(store.switchRun!.error).toContain('Switch to the layout once');
   });
 
   it('does nothing when there is no run to cancel', async () => {

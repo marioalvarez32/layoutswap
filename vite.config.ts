@@ -21,7 +21,7 @@ export default defineConfig({
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
   build: {
     target: 'chrome105',
-    minify: 'esbuild',
+    // Vite 8 minifies with its own bundler; naming esbuild here would need it installed separately.
     sourcemap: false,
   },
   test: {

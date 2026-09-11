@@ -130,6 +130,26 @@ pub fn monitor_labels(
         .collect()
 }
 
+/// The label rule as a function of one summary monitor, for `verify` and the failure
+/// explanations: the labels are worked out once for the whole list.
+pub fn labeller(
+    aliases: &BTreeMap<String, String>,
+    monitors: &[SummaryMonitor],
+) -> impl Fn(&SummaryMonitor) -> String {
+    let labels: Vec<(String, String)> = monitors
+        .iter()
+        .zip(monitor_labels(aliases, monitors))
+        .map(|(m, label)| (m.device_path.clone(), label))
+        .collect();
+    move |m| {
+        labels
+            .iter()
+            .find(|(path, _)| *path == m.device_path)
+            .map(|(_, label)| label.clone())
+            .unwrap_or_else(|| m.reported_name.clone())
+    }
+}
+
 /// The file name of a layout's switch script inside its folder.
 pub const SWITCH_SCRIPT_NAME: &str = "switch.ps1";
 pub const SWITCH_LOG_NAME: &str = "switch.log";
@@ -404,6 +424,24 @@ mod tests {
                 .count(),
             2
         );
+    }
+
+    #[test]
+    fn the_labeller_applies_the_same_rule_per_monitor() {
+        let inventory = crate::hardware::parse(FIVE).unwrap();
+        let summary = summarise(&inventory);
+        let label = labeller(&BTreeMap::new(), &summary.monitors);
+        let msi = summary
+            .monitors
+            .iter()
+            .find(|m| m.reported_name == "MSI MP165 E6" && m.connector.ends_with('1'))
+            .unwrap();
+        assert_eq!(label(msi), "MSI MP165 E6 · USB-C DisplayPort 1");
+        let stranger = SummaryMonitor {
+            device_path: "nope".into(),
+            ..msi.clone()
+        };
+        assert_eq!(label(&stranger), "MSI MP165 E6");
     }
 
     #[test]

@@ -93,6 +93,33 @@ pub fn cancel_switch(state: State<'_, AppState>) -> Result<(), AppError> {
     state.app.cancel_switch()
 }
 
+#[tauri::command]
+pub fn open_log(state: State<'_, AppState>, layout_id: String) -> Result<(), AppError> {
+    state.app.open_log(&layout_id)
+}
+
+#[tauri::command]
+pub fn open_display_settings(state: State<'_, AppState>) -> Result<(), AppError> {
+    state.app.open_display_settings()
+}
+
+/// Asks where to save, then writes the zip there. Resolves with the path, or null when
+/// the user cancelled the dialog.
+#[tauri::command]
+pub async fn save_diagnostics(
+    state: State<'_, AppState>,
+    layout_id: String,
+) -> Result<Option<String>, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || {
+        app.save_diagnostics(&layout_id, |file_name| {
+            crate::dialog::ask_where_to_save("Save diagnostics", file_name, "Zip archive", "zip")
+        })
+        .map(|path| path.map(|p| p.display().to_string()))
+    })
+    .await
+}
+
 async fn blocking<T: Send + 'static>(
     work: impl FnOnce() -> Result<T, AppError> + Send + 'static,
 ) -> Result<T, AppError> {

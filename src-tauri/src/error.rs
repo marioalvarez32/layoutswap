@@ -108,7 +108,23 @@ pub enum AppError {
     ScriptMissing { path: PathBuf },
 
     #[error("Open {path} yourself: Windows could not start the program for it ({source}).")]
-    ScriptOpen {
+    FileOpen {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Switch to the layout once, then open its log: {path} is not on disk yet.")]
+    LogMissing { path: PathBuf },
+
+    #[error("Open Settings > Display yourself, from the Start menu: Windows could not open it ({source}).")]
+    SettingsOpen {
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Pick another place to save the diagnostics: could not write {path} ({source}).")]
+    DiagnosticsWrite {
         path: PathBuf,
         #[source]
         source: std::io::Error,

@@ -11,7 +11,7 @@ import { useWindowSize } from '@/features/settings/useWindowSize';
 import { formatProbeTime } from '@/domain/time';
 
 const layoutsStore = useLayoutsStore();
-const { listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun } = storeToRefs(layoutsStore);
+const { listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun, resultActionBusy } = storeToRefs(layoutsStore);
 
 const { error: windowSizeError } = useWindowSize();
 
@@ -58,8 +58,12 @@ onMounted(async () => {
       <SwitchProgress
         v-else-if="switchOnScreen && switchRun"
         :run="switchRun"
+        :busy="resultActionBusy"
         @cancel="layoutsStore.cancelSwitch"
         @back="layoutsStore.dismissSwitch"
+        @open-log="layoutsStore.resultAction('openLog')"
+        @save-diagnostics="layoutsStore.resultAction('saveDiagnostics')"
+        @open-display-settings="layoutsStore.resultAction('openDisplaySettings')"
       />
       <LayoutDetail
         v-else-if="selected"

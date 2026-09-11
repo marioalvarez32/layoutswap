@@ -21,6 +21,9 @@ thiserror = "2"
 ts-rs = { version = "12", features = ["serde-compat"] }
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", default-features = false, features = ["clock"] }
+zip = { version = "4.2.0", default-features = false, features = ["deflate"] }
+rfd = { version = "0.17.2", default-features = false }
+dirs = "7.0.0"
 
 [dev-dependencies]
 tempfile = "3"

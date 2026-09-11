@@ -136,6 +136,18 @@ describe('LayoutDetail', () => {
     expect(ultrawideRow.find('.on-off').text()).toBe('Off');
   });
 
+  it('shows the current input source where DDC-CI answered', () => {
+    const wrapper = mountDetail();
+    const rows = wrapper.findAll('.row');
+    const acer = rows.find((r) => r.text().includes('KG241Y X1'))!;
+    expect(acer.find('.input').text()).toBe('HDMI 1');
+    expect(acer.find('.input').attributes('title')).toBe('Input source code 0x11');
+    const builtIn = rows.find((r) => r.text().includes('Built-in display'))!;
+    expect(builtIn.find('.input').exists()).toBe(false);
+    const ultrawide = rows.find((r) => r.text().includes('VG34VQEL1A'))!;
+    expect(ultrawide.find('.input').exists()).toBe(false);
+  });
+
   it('shows aliases where they exist', () => {
     const wrapper = mountDetail(inventoryFixture(), { 'path-acer': 'Side' });
     expect(wrapper.findAll('.spec-name').map((n) => n.text())).toContain('Side');

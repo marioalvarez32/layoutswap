@@ -2,9 +2,10 @@
 //!
 //! The implementation runs the probe script through a [`ScriptRunner`] and parses its
 //! JSON. Hardware knowledge lives in this one directory: what a device path is, which
-//! output technology is which connector, how a DPI becomes a scale. Nothing else in the
-//! crate reads those raw facts.
+//! output technology is which connector, how a DPI becomes a scale, what a DDC-CI
+//! input source code is. Nothing else in the crate reads those raw facts.
 
+pub mod input_source;
 mod report;
 
 use std::path::Path;
@@ -52,6 +53,37 @@ pub struct Monitor {
     /// Windows scale, 100 for 100%.
     pub scale_percent: Option<u32>,
     pub primary: bool,
+    /// The current input source as a VCP code 0x60 value, when DDC-CI answered.
+    pub input_source: Option<u32>,
+    /// The input source's name from the fixed table, "Input 0x1E" for an unknown code.
+    pub input_source_name: Option<String>,
+    pub ddc_ci: DdcCi,
+}
+
+/// Whether the probe could ask the monitor over DDC-CI. Only an Active monitor is
+/// asked, because only it has the GDI name the physical monitor handle comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub enum DdcCi {
+    Answered,
+    /// Asked and silent within the probe's timeout, no physical monitor handle, or
+    /// several handles under one GDI name (clone mode).
+    NotAnswering,
+    /// Not asked: the monitor is not Active, or the probe predates the read.
+    #[default]
+    NotRead,
+}
+
+impl DdcCi {
+    /// The probe's word for the status; anything else reads as not read.
+    fn from_probe(word: &str) -> Self {
+        match word {
+            "answered" => DdcCi::Answered,
+            "notAnswering" => DdcCi::NotAnswering,
+            _ => DdcCi::NotRead,
+        }
+    }
 }
 
 /// The glossary's three monitor states.
@@ -164,6 +196,12 @@ fn monitor_from(r: &ReportMonitor) -> Monitor {
         _ => 0,
     });
     let scale_percent = (r.active && r.dpi > 0).then(|| (r.dpi * 100 + 48) / 96);
+    let ddc_ci = if r.active {
+        DdcCi::from_probe(&r.ddc_ci)
+    } else {
+        DdcCi::NotRead
+    };
+    let input_source = (ddc_ci == DdcCi::Answered).then_some(r.input_source).flatten();
     Monitor {
         device_path: r.device_path.clone(),
         reported_name,
@@ -178,6 +216,9 @@ fn monitor_from(r: &ReportMonitor) -> Monitor {
         rotation,
         scale_percent,
         primary: has_mode && r.x == 0 && r.y == 0,
+        input_source,
+        input_source_name: input_source.map(input_source::name),
+        ddc_ci,
     }
 }
 
@@ -301,6 +342,40 @@ mod tests {
         assert_eq!(built_in.scale_percent, Some(150));
         assert_eq!(built_in.rotation, Some(0));
         assert!(!built_in.primary);
+    }
+
+    #[test]
+    fn reads_the_input_source_only_where_ddc_ci_answered() {
+        let inventory = parse(FIVE_MONITORS).unwrap();
+        let acer = by_path(&inventory, "ACR0EC4");
+        assert_eq!(acer.ddc_ci, DdcCi::Answered);
+        assert_eq!(acer.input_source, Some(0x11));
+        assert_eq!(acer.input_source_name.as_deref(), Some("HDMI 1"));
+        let built_in = by_path(&inventory, "EDO4245");
+        assert_eq!(built_in.ddc_ci, DdcCi::NotAnswering);
+        assert_eq!(built_in.input_source, None);
+        let ultrawide = by_path(&inventory, "AUS343F");
+        assert_eq!(ultrawide.ddc_ci, DdcCi::NotRead);
+        assert_eq!(ultrawide.input_source, None);
+
+        // An older probe without the fields reads as not read.
+        let older = FIVE_MONITORS
+            .replace(r#","inputSource":17,"ddcCi":"answered""#, "")
+            .replace(r#","inputSource":27,"ddcCi":"answered""#, "")
+            .replace(r#","inputSource":null,"ddcCi":"notAnswering""#, "")
+            .replace(r#","inputSource":null,"ddcCi":"notRead""#, "");
+        assert!(!older.contains("ddcCi"));
+        let inventory = parse(&older).unwrap();
+        assert!(inventory.monitors.iter().all(|m| m.ddc_ci == DdcCi::NotRead));
+
+        // A word this version does not know reads as not read; an inactive monitor
+        // reads as not read whatever the probe said.
+        let odd = FIVE_MONITORS
+            .replacen(r#""ddcCi":"answered""#, r#""ddcCi":"maybe""#, 1)
+            .replacen(r#""ddcCi":"notRead""#, r#""ddcCi":"answered""#, 1);
+        let inventory = parse(&odd).unwrap();
+        assert_eq!(by_path(&inventory, "ACR0EC4").ddc_ci, DdcCi::NotRead);
+        assert_eq!(by_path(&inventory, "AUS343F").ddc_ci, DdcCi::NotRead);
     }
 
     #[test]

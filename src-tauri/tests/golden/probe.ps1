@@ -3,13 +3,15 @@
 # rendered 2026-09-09T14:32:05-05:00
 #
 # Read-only. Reports every monitor Windows knows about, the arrangement of the
-# active ones as the raw display-config arrays, and the GPU behind each, as one
-# JSON document on standard output. Nothing else is printed there; failures go
-# to standard error.
+# active ones as the raw display-config arrays, the GPU behind each, and the
+# current input source of each active monitor over DDC-CI, as one JSON document
+# on standard output. Nothing else is printed there; failures go to standard error.
+# A monitor that does not answer DDC-CI within the timeout is reported as such.
 #
 # Exit codes: 0 reported, 1 could not read the display configuration.
 
 $ErrorActionPreference = 'Stop'
+$DdcTimeoutMs = 1500   # for every monitor together; silent monitors cost this much and no more
 
 $csharp = @'
 using System;
@@ -141,16 +143,73 @@ namespace LayoutswapProbe {
         // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2; older Windows 10 builds refuse it, which is fine.
         public static void MakeAware() { try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { } }
 
-        public static uint ForGdi(string gdi) {
+        // The HMONITOR Windows shows under a GDI name, or zero when not found.
+        public static IntPtr FindByGdi(string gdi) {
             IntPtr found = IntPtr.Zero;
             MonitorEnumProc cb = (IntPtr hMon, IntPtr hdc, ref RECT r, IntPtr d) => {
                 var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf(typeof(MONITORINFOEX)) };
                 if (GetMonitorInfo(hMon, ref mi) && string.Equals(mi.szDevice.TrimEnd('\0'), gdi, StringComparison.OrdinalIgnoreCase)) found = hMon;
                 return true; };
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, cb, IntPtr.Zero);
+            return found;
+        }
+
+        public static uint ForGdi(string gdi) {
+            IntPtr found = FindByGdi(gdi);
             if (found == IntPtr.Zero) return 0;
             uint x, y;
             try { return GetDpiForMonitor(found, 0, out x, out y) == 0 ? x : 0; } catch { return 0; }
+        }
+    }
+
+    // The current input source of each monitor under a GDI name, read over DDC-CI
+    // (VCP code 0x60) through its physical monitor handle. Every read starts on its
+    // own thread and the probe waits once for all of them, so silent monitors cost
+    // one timeout in total, not one each. A read that never returns keeps its handle
+    // until the process exits; nothing can cancel it. Only an active monitor has a
+    // GDI name, and a GDI name shared by several physical monitors (clone mode)
+    // cannot be told apart, so it reads as not answering rather than as a guess.
+    public static class Ddc {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct PHYSICAL_MONITOR { public IntPtr h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string desc; }
+        [DllImport("dxva2.dll")] static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr hMon, out uint n);
+        [DllImport("dxva2.dll")] static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr hMon, uint n, [Out] PHYSICAL_MONITOR[] arr);
+        [DllImport("dxva2.dll")] static extern bool DestroyPhysicalMonitors(uint n, PHYSICAL_MONITOR[] arr);
+        [DllImport("dxva2.dll")] static extern bool GetVCPFeatureAndVCPFeatureReply(IntPtr h, byte code, out uint type, out uint current, out uint max);
+        const byte VCP_INPUT_SOURCE = 0x60;
+
+        public class Reading { public string Status = "notAnswering"; public uint Value; }
+
+        static Reading ReadNow(string gdi) {
+            var r = new Reading();
+            IntPtr hMon = Dpi.FindByGdi(gdi);
+            if (hMon == IntPtr.Zero) return r;
+            uint n;
+            if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMon, out n) || n != 1) return r;
+            var arr = new PHYSICAL_MONITOR[n];
+            if (!GetPhysicalMonitorsFromHMONITOR(hMon, n, arr)) return r;
+            try {
+                uint t, cur, max;
+                if (GetVCPFeatureAndVCPFeatureReply(arr[0].h, VCP_INPUT_SOURCE, out t, out cur, out max)) {
+                    // MCCS 2.2 puts the input in the low byte; a monitor that answers in the
+                    // high byte instead is read there rather than as input zero.
+                    uint low = cur & 0xFF, high = (cur >> 8) & 0xFF;
+                    r.Status = "answered"; r.Value = low != 0 ? low : high;
+                }
+            } finally { DestroyPhysicalMonitors(n, arr); }
+            return r;
+        }
+
+        public static Reading[] ReadAll(string[] gdis, int timeoutMs) {
+            var tasks = new System.Threading.Tasks.Task<Reading>[gdis.Length];
+            for (int i = 0; i < gdis.Length; i++) { string gdi = gdis[i]; tasks[i] = System.Threading.Tasks.Task.Factory.StartNew(() => ReadNow(gdi)); }
+            try { System.Threading.Tasks.Task.WaitAll(tasks, timeoutMs); } catch { }
+            var results = new Reading[gdis.Length];
+            for (int i = 0; i < gdis.Length; i++) {
+                var t = tasks[i];
+                results[i] = (t.Status == System.Threading.Tasks.TaskStatus.RanToCompletion) ? t.Result : new Reading();
+            }
+            return results;
         }
     }
 }
@@ -191,15 +250,26 @@ try {
                 outputTechnology = [int64]$r.OutputTechnology; connectorInstance = [int]$r.ConnectorInstance
                 active = $false; available = [bool]$r.Available; hasMode = $false
                 x = 0; y = 0; width = 0; height = 0; refreshNum = 0; refreshDen = 0; rotation = 0; dpi = 0
+                inputSource = $null; ddcCi = 'notRead'
             }
         }
         $m = $byTarget[$key]
         if ($r.Available) { $m.available = $true }
         if ($r.Active) {
-            $m.active = $true; $m.gdiName = $r.Gdi
+            $m.active = $true; $m.gdiName = $r.Gdi; $m.ddcCi = 'notAnswering'
             $m.refreshNum = [int64]$r.RefreshNum; $m.refreshDen = [int64]$r.RefreshDen; $m.rotation = [int]$r.Rotation
             if ($r.HasMode) { $m.hasMode = $true; $m.x = $r.X; $m.y = $r.Y; $m.width = $r.W; $m.height = $r.H }
             if ($r.Gdi) { $m.dpi = [int][LayoutswapProbe.Dpi]::ForGdi($r.Gdi) }
+        }
+    }
+
+    # Every active monitor's input source, asked at once.
+    $asked = @($byTarget.Values | Where-Object { $_.active -and $_.gdiName })
+    if ($asked.Count -gt 0) {
+        $readings = [LayoutswapProbe.Ddc]::ReadAll([string[]]@($asked | ForEach-Object { $_.gdiName }), $DdcTimeoutMs)
+        for ($i = 0; $i -lt $asked.Count; $i++) {
+            $asked[$i].ddcCi = [string]$readings[$i].Status
+            if ($readings[$i].Status -eq 'answered') { $asked[$i].inputSource = [int64]$readings[$i].Value }
         }
     }
 

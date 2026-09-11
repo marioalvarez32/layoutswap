@@ -1,4 +1,4 @@
-import type { Inventory, MonitorState, Point, Size } from '@/domain/generated/types';
+import type { Inventory, Monitor, MonitorState, Point, Size } from '@/domain/generated/types';
 
 /** The fields every monitor-like record carries, whether from a probe or a summary. */
 export interface MonitorIdentity {
@@ -120,6 +120,11 @@ export function inLayoutHint(label: string, on: boolean, state: MonitorState): s
     : `${label} is Absent. It is off in this layout, so a switch does not need it.`;
 }
 
+/** The latest probe's entry for a monitor, or null when the probe did not list it or has not run. */
+export function liveMonitor(inventory: Inventory | null, devicePath: string): Monitor | null {
+  return inventory?.monitors.find((m) => m.devicePath === devicePath) ?? null;
+}
+
 /**
  * A monitor's state right now. A monitor the latest probe did not list is Absent;
  * with no probe yet there is nothing to say.
@@ -128,5 +133,10 @@ export function liveState(inventory: Inventory | null, devicePath: string): Moni
   if (!inventory) {
     return null;
   }
-  return inventory.monitors.find((m) => m.devicePath === devicePath)?.state ?? 'Absent';
+  return liveMonitor(inventory, devicePath)?.state ?? 'Absent';
+}
+
+/** The tooltip that carries the code behind an input source name (DESIGN.md, Copy voice). */
+export function inputSourceTooltip(code: number): string {
+  return `Input source code 0x${code.toString(16).toUpperCase().padStart(2, '0')}`;
 }

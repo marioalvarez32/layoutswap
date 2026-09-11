@@ -35,6 +35,12 @@ window: WindowSize,
 aliases: { [key in string]: string }, layouts: Array<Layout>, };
 
 /**
+ * Whether the probe could ask the monitor over DDC-CI. Only an Active monitor is
+ * asked, because only it has the GDI name the physical monitor handle comes from.
+ */
+export type DdcCi = "answered" | "notAnswering" | "notRead";
+
+/**
  * What a fresh probe says about a failed step, so the result screen can name
  * monitors and positions instead of quoting the script.
  */
@@ -95,7 +101,15 @@ rotation: number | null,
 /**
  * Windows scale, 100 for 100%.
  */
-scalePercent: number | null, primary: boolean, };
+scalePercent: number | null, primary: boolean, 
+/**
+ * The current input source as a VCP code 0x60 value, when DDC-CI answered.
+ */
+inputSource: number | null, 
+/**
+ * The input source's name from the fixed table, "Input 0x1E" for an unknown code.
+ */
+inputSourceName: string | null, ddcCi: DdcCi, };
 
 /**
  * The glossary's three monitor states.

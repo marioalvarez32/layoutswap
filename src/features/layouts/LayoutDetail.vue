@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
-import { chipLabels, formatSpec, inLayoutHint, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
+import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
 import { describeCaptureTime } from '@/domain/time';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
@@ -28,6 +28,7 @@ const monitors = computed(() =>
     const display = monitorDisplay(props.aliases, m);
     const state = liveState(props.inventory, m.devicePath);
     const tone: Tone = state ? TONES[state] : 'mute';
+    const live = liveMonitor(props.inventory, m.devicePath);
     return {
       devicePath: m.devicePath,
       on: m.on,
@@ -39,6 +40,8 @@ const monitors = computed(() =>
       tone,
       note: state ? monitorStateNote(state) : '',
       hint: state ? inLayoutHint(display.label, m.on, state) : '',
+      input: live?.inputSourceName ?? null,
+      inputTooltip: live?.inputSource === null || live === null ? '' : inputSourceTooltip(live.inputSource),
     };
   }),
 );
@@ -138,6 +141,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
               <Chip v-if="m.state" :tone="m.tone" :title="m.note">
                 {{ m.state }}
               </Chip>
+              <span v-if="m.input" class="input data" :title="m.inputTooltip">{{ m.input }}</span>
             </div>
             <div class="hint">
               {{ m.hint }}
@@ -389,6 +393,10 @@ ul {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.input {
+  white-space: nowrap;
 }
 
 .hint {

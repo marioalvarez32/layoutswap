@@ -32,6 +32,13 @@ most timing defaults trace back to one of these.
   source is sent before the apply when the monitor is leaving and after it when the
   monitor is coming back. The reference scripts settle 3 s after a monitor becomes
   Available before applying, and 2 s after the apply before sending an input.
+- **DDC-CI reads are slow and some monitors stay silent.** Reading the input source
+  (VCP code 0x60) takes tens to hundreds of milliseconds per monitor over dxva2, and a
+  built-in panel or a monitor behind some docks never answers. The probe starts every
+  active monitor's read at once and waits 1.5 s for all of them together, reporting
+  "not answering" for the rest; a read that never returns keeps its handle until the
+  probe exits. In clone mode one GDI name covers several physical monitors, which
+  cannot be told apart, so it reads as not answering too.
 - **Windows rejects an arrangement with a floating monitor.** Every active monitor
   must share an edge with the group that contains the primary.
 - **Apply returns numeric codes.** Error 87 usually means a monitor in the layout is

@@ -52,4 +52,10 @@ pub struct ReportMonitor {
     /// Effective DPI of the monitor, 0 when unknown.
     #[serde(default)]
     pub dpi: u32,
+    /// The current input source as VCP code 0x60 reports it, null when not read.
+    #[serde(default)]
+    pub input_source: Option<u32>,
+    /// `answered`, `notAnswering` or `notRead`; missing or unknown reads as not read.
+    #[serde(default)]
+    pub ddc_ci: String,
 }

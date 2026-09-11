@@ -7,6 +7,8 @@ import {
   formatSize,
   formatSpec,
   inLayoutHint,
+  inputSourceTooltip,
+  liveMonitor,
   liveState,
   monitorDisplay,
   monitorStateNote,
@@ -75,6 +77,22 @@ describe('state copy', () => {
     expect(inLayoutHint('Side', true, 'Available')).toContain('turn it on');
     expect(inLayoutHint('Side', false, 'Available')).toContain('Save current layout again');
     expect(inLayoutHint('Side', true, 'Active')).toBe('');
+  });
+});
+
+describe('liveMonitor', () => {
+  it('finds the probe entry by device path, or nothing', () => {
+    const inventory = inventoryFixture();
+    expect(liveMonitor(inventory, 'path-acer')?.inputSourceName).toBe('HDMI 1');
+    expect(liveMonitor(inventory, 'never-seen')).toBeNull();
+    expect(liveMonitor(null, 'path-acer')).toBeNull();
+  });
+});
+
+describe('inputSourceTooltip', () => {
+  it('carries the code as two hex digits', () => {
+    expect(inputSourceTooltip(0x11)).toBe('Input source code 0x11');
+    expect(inputSourceTooltip(5)).toBe('Input source code 0x05');
   });
 });
 

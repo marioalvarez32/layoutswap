@@ -3,12 +3,14 @@
 //! Module map (see `CODING_STANDARDS.md`, "Modules and seams"):
 //!
 //! - `commands`: the Tauri command seam. Thin: deserialize, call one function on `App`.
-//! - `app`: the composition root: config store, script runner and the latest probe
-//!   under one app root. Capture (probe plus store) is orchestrated here.
+//! - `app`: the composition root: config store, script runner, the latest probe and the
+//!   running switch under one app root. Capture (probe plus store) and the switch
+//!   (`app::switch`) are orchestrated here.
 //! - `config`: the config store and the layout types. `load() -> Config`, `save(Config)`,
 //!   one JSON file with a schema version under the machine-local app root.
 //! - `script::render`: templates -> Script text. The deep module.
 //! - `script::run`: the `ScriptRunner` trait and the only place `powershell.exe` is spawned.
+//! - `script::lock`: the `switch.lock` file a running switch script holds.
 //! - `hardware`: `probe() -> Inventory` through a `ScriptRunner`.
 //! - `shortcuts`: per-layout `.lnk` files and the scheduled task, through generated scripts.
 
@@ -65,7 +67,9 @@ pub fn run() {
             commands::capture_layout,
             commands::script_states,
             commands::regenerate_script,
-            commands::open_script
+            commands::open_script,
+            commands::switch_layout,
+            commands::cancel_switch
         ])
         .run(tauri::generate_context!())
         .expect("layoutswap failed to start");

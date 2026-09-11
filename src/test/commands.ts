@@ -29,5 +29,8 @@ export function commandsMock(): typeof commands {
     scriptStates: vi.fn<typeof commands.scriptStates>().mockResolvedValue([]),
     regenerateScript: vi.fn<typeof commands.regenerateScript>().mockResolvedValue(layoutFixture()),
     openScript: vi.fn<typeof commands.openScript>().mockResolvedValue(undefined),
+    switchLayout: vi.fn<typeof commands.switchLayout>().mockResolvedValue({ outcome: 'applied', durationMs: 11_400 }),
+    cancelSwitch: vi.fn<typeof commands.cancelSwitch>().mockResolvedValue(undefined),
+    onSwitchEvent: vi.fn<typeof commands.onSwitchEvent>().mockResolvedValue(() => {}),
   };
 }

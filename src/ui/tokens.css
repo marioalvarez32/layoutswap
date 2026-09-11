@@ -58,6 +58,7 @@
   --leading: 1.5;
   --leading-prose: 1.6;
   --tracking-tight: -0.01em;
+  --tracking-label: 0.08em;
 
   /* Spacing, the steps the canvas uses */
   --space-0: 2px;

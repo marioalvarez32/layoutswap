@@ -5,18 +5,20 @@ import LayoutDetail from '@/features/layouts/LayoutDetail.vue';
 import LayoutsEmptyState from '@/features/layouts/LayoutsEmptyState.vue';
 import SaveLayoutPage from '@/features/layouts/SaveLayoutPage.vue';
 import Sidebar from '@/features/layouts/Sidebar.vue';
+import SwitchProgress from '@/features/layouts/SwitchProgress.vue';
 import { useLayoutsStore } from '@/features/layouts/layouts.store';
 import { useWindowSize } from '@/features/settings/useWindowSize';
 import { formatProbeTime } from '@/domain/time';
 
 const layoutsStore = useLayoutsStore();
-const { listItems, selectedId, selected, isEmpty, aliases, inventory, loadError } = storeToRefs(layoutsStore);
+const { listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun } = storeToRefs(layoutsStore);
 
 const { error: windowSizeError } = useWindowSize();
 
-// The content area shows the Save current layout page, the selected layout, or the
-// first-run empty state.
+// The content area shows the Save current layout page, the switch progress of the
+// selected layout, the selected layout, or the first-run empty state.
 const savePageOpen = ref(false);
+const switchOnScreen = computed(() => switchRun.value !== null && switchRun.value.layoutId === selectedId.value);
 const lastProbe = computed(() => (inventory.value ? formatProbeTime(inventory.value.probedAt) : null));
 const banner = computed(() => loadError.value ?? windowSizeError.value);
 
@@ -53,6 +55,12 @@ onMounted(async () => {
         {{ banner }}
       </p>
       <SaveLayoutPage v-if="savePageOpen" @cancel="closeSave" @saved="closeSave" />
+      <SwitchProgress
+        v-else-if="switchOnScreen && switchRun"
+        :run="switchRun"
+        @cancel="layoutsStore.cancelSwitch"
+        @back="layoutsStore.dismissSwitch"
+      />
       <LayoutDetail
         v-else-if="selected"
         :layout="selected"

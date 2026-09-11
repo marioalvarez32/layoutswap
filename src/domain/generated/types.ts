@@ -147,6 +147,33 @@ export type SummaryMonitor = { devicePath: string,
 reportedName: string, connector: string, on: boolean, position: Point | null, size: Size | null, refreshHz: number | null, rotation: number | null, scalePercent: number | null, primary: boolean, };
 
 /**
+ * What the app tells the webview while a switch runs.
+ */
+export type SwitchEvent = { "kind": "started", layoutId: string, 
+/**
+ * The step names in order, so the screen lists them before any reports.
+ */
+steps: Array<string>, 
+/**
+ * The one-based step from which Cancel is disabled.
+ */
+applyStep: number, } | { "kind": "progress", line: ProgressLine, } | { "kind": "log", text: string, };
+
+/**
+ * How a switch ended.
+ */
+export type SwitchResult = { "outcome": "applied", durationMs: number, } | { "outcome": "failed", 
+/**
+ * The one-based step that failed, or null when the script stopped before or
+ * outside a step.
+ */
+step: number | null, stepName: string, nextAction: string, reason: string, exitCode: number, 
+/**
+ * `switch.log` in the layout folder.
+ */
+logPath: string, } | { "outcome": "cancelled" };
+
+/**
  * A window size in logical pixels.
  */
 export type WindowSize = { width: number, height: number, };

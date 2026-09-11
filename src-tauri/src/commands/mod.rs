@@ -9,9 +9,9 @@
 
 use std::sync::Arc;
 
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
-use crate::app::App;
+use crate::app::{App, SwitchEvent, SwitchResult};
 use crate::config::layouts::{CaptureOutcome, Layout, ScriptStatus};
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
@@ -65,6 +65,32 @@ pub async fn regenerate_script(
 #[tauri::command]
 pub fn open_script(state: State<'_, AppState>, layout_id: String) -> Result<(), AppError> {
     state.app.open_script(&layout_id)
+}
+
+/// The event a running switch emits to the window; `src/tauri/commands.ts` listens by
+/// this name. The payload is a [`SwitchEvent`].
+pub const SWITCH_EVENT: &str = "switch-event";
+
+/// Stays pending until the script exits; progress arrives as [`SWITCH_EVENT`] events.
+#[tauri::command]
+pub async fn switch_layout(
+    handle: AppHandle,
+    state: State<'_, AppState>,
+    layout_id: String,
+) -> Result<SwitchResult, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || {
+        app.switch(&layout_id, &|event: SwitchEvent| {
+            // A window that has gone away has nobody to tell; the switch still finishes.
+            let _ = handle.emit(SWITCH_EVENT, &event);
+        })
+    })
+    .await
+}
+
+#[tauri::command]
+pub fn cancel_switch(state: State<'_, AppState>) -> Result<(), AppError> {
+    state.app.cancel_switch()
 }
 
 async fn blocking<T: Send + 'static>(

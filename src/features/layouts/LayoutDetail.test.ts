@@ -2,7 +2,8 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Inventory } from '@/domain/generated/types';
-import { openScript, regenerateScript } from '@/tauri/commands';
+import { newSwitchRun } from '@/domain/switch';
+import { openScript, regenerateScript, switchLayout } from '@/tauri/commands';
 import { inventoryFixture, layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 import LayoutDetail from './LayoutDetail.vue';
@@ -26,12 +27,12 @@ describe('LayoutDetail', () => {
     vi.clearAllMocks();
   });
 
-  it('shows the script state and offers Open script and Regenerate script', async () => {
+  it('shows the script state and offers Open script, Regenerate script and Switch', async () => {
     const wrapper = mountDetail();
     expect(wrapper.find('.script-line').text()).toBe('Script up to date');
     expect(wrapper.find('.script-line').classes()).toContain('good');
     const buttons = wrapper.findAll('.actions button').map((b) => b.text());
-    expect(buttons).toEqual(['Open script', 'Regenerate script']);
+    expect(buttons).toEqual(['Open script', 'Regenerate script', 'Switch to Desk']);
 
     await wrapper.findAll('.actions button')[0]!.trigger('click');
     await flushPromises();
@@ -39,6 +40,33 @@ describe('LayoutDetail', () => {
     await wrapper.findAll('.actions button')[1]!.trigger('click');
     await flushPromises();
     expect(regenerateScript).toHaveBeenCalledWith('layout-desk');
+  });
+
+  it('starts the switch from the primary action', async () => {
+    const wrapper = mountDetail();
+    const switchButton = wrapper.findAll('.actions button')[2]!;
+    expect(switchButton.classes()).toContain('primary');
+    expect(switchButton.attributes('disabled')).toBeUndefined();
+    await switchButton.trigger('click');
+    await flushPromises();
+    expect(switchLayout).toHaveBeenCalledWith('layout-desk');
+  });
+
+  it('disables Switch while another layout is switching and says which', () => {
+    const store = useLayoutsStore();
+    store.switchRun = newSwitchRun({ id: 'layout-film', name: 'Film' }, ['Check monitors'], 2, Date.now());
+    const wrapper = mountDetail();
+    const switchButton = wrapper.findAll('.actions button')[2]!;
+    expect(switchButton.attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.blocked').text()).toBe('Wait for the switch to Film to finish.');
+  });
+
+  it('shows a refused switch in the band', async () => {
+    vi.mocked(switchLayout).mockRejectedValueOnce({ message: 'Wait for the switch to Film to finish, then try again.', logPath: null });
+    const wrapper = mountDetail();
+    await wrapper.findAll('.actions button')[2]!.trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.band.crit').text()).toContain('Wait for the switch to Film');
   });
 
   it('shows the name, when it was captured, and the read-only note', () => {

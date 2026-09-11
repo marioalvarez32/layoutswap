@@ -7,6 +7,7 @@ import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import ArrangementSchematic from './ArrangementSchematic.vue';
 import { useLayoutScript } from './useLayoutScript';
+import { useSwitchLayout } from './useSwitchLayout';
 
 const props = defineProps<{
   layout: Layout;
@@ -16,6 +17,8 @@ const props = defineProps<{
 }>();
 
 const script = useLayoutScript(() => props.layout.id);
+const switchAction = useSwitchLayout(() => props.layout.id);
+const error = computed(() => script.error.value ?? switchAction.error.value);
 
 type Tone = 'good' | 'warn' | 'crit' | 'mute';
 const TONES: Record<MonitorState, Tone> = { Active: 'good', Available: 'warn', Absent: 'crit' };
@@ -69,12 +72,22 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
         <Button :disabled="script.busy.value" @click="script.regenerate">
           Regenerate script
         </Button>
+        <span class="switch">
+          <Button
+            variant="primary"
+            :disabled="switchAction.busy.value || switchAction.blockedBy.value !== null"
+            @click="switchAction.start"
+          >
+            Switch to {{ layout.name }}
+          </Button>
+          <span v-if="switchAction.blockedBy.value" class="blocked">{{ switchAction.blockedBy.value }}</span>
+        </span>
       </div>
     </header>
 
     <div class="body">
-      <p v-if="script.error.value" class="band crit" role="alert">
-        {{ script.error.value }}
+      <p v-if="error" class="band crit" role="alert">
+        {{ error }}
       </p>
 
       <section class="section">
@@ -162,8 +175,22 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
 
 .actions {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-3);
   flex: none;
+}
+
+.switch {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.blocked {
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+  white-space: nowrap;
 }
 
 .script-line {

@@ -1,6 +1,11 @@
-//! The composition root the commands call: the config store, the script runner and
-//! the latest probe, wired together under one app root. Commands stay one line each;
-//! the tests here drive the same functions through a fake runner and a temp directory.
+//! The composition root the commands call: the config store, the script runner, the
+//! latest probe and the running switch, wired together under one app root. Commands
+//! stay one line each; the tests here drive the same functions through a fake runner
+//! and a temp directory. The switch itself lives in [`switch`].
+
+mod switch;
+
+pub use switch::{SwitchEvent, SwitchResult};
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -25,6 +30,7 @@ pub struct App {
     store: ConfigStore,
     runner: Arc<dyn ScriptRunner>,
     last_probe: Mutex<Option<Inventory>>,
+    active_switch: Mutex<Option<switch::ActiveSwitch>>,
 }
 
 impl App {
@@ -33,6 +39,7 @@ impl App {
             store: ConfigStore::new(root),
             runner,
             last_probe: Mutex::new(None),
+            active_switch: Mutex::new(None),
         }
     }
 

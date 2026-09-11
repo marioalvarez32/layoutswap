@@ -131,6 +131,12 @@ A generated script or shortcut older than the template or the layout it was made
 from. Regenerating clears it.
 _Avoid_: outdated, dirty, out of sync
 
+**Lock**:
+The file in the app root a running switch script holds, naming its process and its
+layout, so one switch runs at a time whether it started from the app or from a
+shortcut. The script removes it on exit; the app removes it after a cancel.
+_Avoid_: mutex, semaphore, guard
+
 **Diagnostics**:
 A single file the app writes on request holding everything needed to debug a
 switch: the app log, the layout's switch log, the last probe result, the generated

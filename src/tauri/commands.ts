@@ -2,8 +2,9 @@
 // window queries the renderer needs. Argument and result types come from the generated
 // bindings. Tests mock this module.
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { CaptureOutcome, Config, Inventory, Layout, ScriptStatus, WindowSize } from '@/domain/generated/types';
+import type { CaptureOutcome, Config, Inventory, Layout, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
 
 export function loadConfig(): Promise<Config> {
   return invoke<Config>('load_config');
@@ -40,4 +41,25 @@ export function regenerateScript(layoutId: string): Promise<Layout> {
 /** Opens a layout's switch script with whatever Windows associates with .ps1 files. */
 export function openScript(layoutId: string): Promise<void> {
   return invoke<void>('open_script', { layoutId });
+}
+
+/**
+ * Runs a layout's switch script and resolves once it has exited. Progress arrives
+ * through `onSwitchEvent` meanwhile; subscribe before calling this.
+ */
+export function switchLayout(layoutId: string): Promise<SwitchResult> {
+  return invoke<SwitchResult>('switch_layout', { layoutId });
+}
+
+/** Kills the running switch. Refused once the Apply arrangement step has reported. */
+export function cancelSwitch(): Promise<void> {
+  return invoke<void>('cancel_switch');
+}
+
+/** The event name `commands::SWITCH_EVENT` emits on. */
+const SWITCH_EVENT = 'switch-event';
+
+/** Subscribes to the events a running switch emits; resolves with the unsubscribe. */
+export function onSwitchEvent(handler: (event: SwitchEvent) => void): Promise<UnlistenFn> {
+  return listen<SwitchEvent>(SWITCH_EVENT, (event) => handler(event.payload));
 }

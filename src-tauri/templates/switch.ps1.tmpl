@@ -48,6 +48,9 @@ $SummaryJson = @'
 
 #-----------------------------------------------------------------------------
 $ErrorActionPreference = 'Stop'
+# The app reads this output through a pipe as UTF-8; without this, monitor labels with
+# a middle dot come through in the OEM code page and print as replacement characters.
+try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } catch { }
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogPath       = Join-Path $ScriptDir 'switch.log'
 $LockPath      = Join-Path $AppRoot 'switch.lock'

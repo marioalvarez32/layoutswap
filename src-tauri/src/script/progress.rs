@@ -33,6 +33,42 @@ pub struct ProgressLine {
     pub text: String,
 }
 
+/// The three pieces of a failed line's text, as the script's `Write-Failure` prints them:
+/// `<step name>: <next action>; <reason>`. Missing pieces come back empty.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FailureParts {
+    pub step_name: String,
+    pub next_action: String,
+    pub reason: String,
+}
+
+impl ProgressLine {
+    /// Splits a failed line's text into the step name, the next action and the reason.
+    /// A line that is not a failure has no next action: the whole text is the step name.
+    pub fn failure_parts(&self) -> FailureParts {
+        if self.status != StepStatus::Failed {
+            return FailureParts {
+                step_name: self.text.clone(),
+                next_action: String::new(),
+                reason: String::new(),
+            };
+        }
+        let (step_name, rest) = match self.text.split_once(": ") {
+            Some((step, rest)) => (step.to_string(), rest),
+            None => (String::new(), self.text.as_str()),
+        };
+        let (next_action, reason) = match rest.split_once("; ") {
+            Some((action, reason)) => (action.to_string(), reason.to_string()),
+            None => (rest.to_string(), String::new()),
+        };
+        FailureParts {
+            step_name,
+            next_action,
+            reason,
+        }
+    }
+}
+
 /// Parses one line of script output. Anything that is not a progress line is log.
 pub fn parse_progress_line(line: &str) -> Option<ProgressLine> {
     let line = line.trim_end();
@@ -100,6 +136,28 @@ mod tests {
         assert_eq!(line.status, StepStatus::Failed);
         assert!(line.text.starts_with("Apply arrangement: "));
         assert!(line.text.ends_with("(Windows error 1610)"));
+    }
+
+    #[test]
+    fn a_failed_line_splits_into_step_action_and_reason() {
+        let line = parse_progress_line(
+            "[1/3] failed Check monitors: press the input button on Ultrawide, or plug it in, then switch again; 1 Absent",
+        )
+        .unwrap();
+        assert_eq!(
+            line.failure_parts(),
+            FailureParts {
+                step_name: "Check monitors".into(),
+                next_action: "press the input button on Ultrawide, or plug it in, then switch again".into(),
+                reason: "1 Absent".into(),
+            }
+        );
+        let bare = parse_progress_line("[2/3] failed Apply arrangement").unwrap();
+        assert_eq!(bare.failure_parts().step_name, "");
+        assert_eq!(bare.failure_parts().next_action, "Apply arrangement");
+        let done = parse_progress_line("[3/3] done Verify").unwrap();
+        assert_eq!(done.failure_parts().step_name, "Verify");
+        assert_eq!(done.failure_parts().next_action, "");
     }
 
     #[test]

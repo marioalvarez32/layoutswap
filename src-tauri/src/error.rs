@@ -114,6 +114,22 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("Wait for the switch to {layout} to finish, then try again.")]
+    SwitchRunning { layout: String },
+
+    #[error(
+        "Wait for the switch to {layout} to finish, then try again. If no switch is running, delete {path} first."
+    )]
+    SwitchLocked { layout: String, path: PathBuf },
+
+    #[error("Nothing to cancel: no switch is running.")]
+    NoSwitchRunning,
+
+    #[error(
+        "Wait for the switch to {layout} to finish: the arrangement is already being applied and cannot be stopped."
+    )]
+    CancelTooLate { layout: String },
+
     #[error(
         "Open layoutswap again and try once more: something inside the app failed ({detail})."
     )]

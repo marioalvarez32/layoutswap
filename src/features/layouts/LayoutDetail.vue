@@ -3,7 +3,7 @@ import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
 import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
-import { stepLabeller, DROP_WAIT_SECONDS_MAX } from '@/domain/steps';
+import { stepLabeller, AVAILABLE_WAIT_SECONDS_MAX, DROP_WAIT_SECONDS_MAX } from '@/domain/steps';
 import { describeCaptureTime } from '@/domain/time';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
@@ -182,7 +182,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
           @add="addStep"
         />
         <details class="advanced">
-          <summary>Advanced: drop wait {{ editor.edits.value.dropWaitSeconds }} s</summary>
+          <summary>Advanced: drop wait {{ editor.edits.value.dropWaitSeconds }} s · Available wait {{ editor.edits.value.availableWaitSeconds }} s</summary>
           <label class="field">
             <span>Drop wait</span>
             <input
@@ -197,6 +197,20 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
             <span>seconds a send step waits for its monitor to drop</span>
           </label>
           <span v-if="editor.dropWaitRule.value" class="rule" role="alert">{{ editor.dropWaitRule.value }}</span>
+          <label class="field">
+            <span>Available wait</span>
+            <input
+              type="number"
+              class="available-wait"
+              min="1"
+              :max="AVAILABLE_WAIT_SECONDS_MAX"
+              :value="editor.edits.value.availableWaitSeconds"
+              :aria-invalid="editor.availableWaitRule.value ? 'true' : undefined"
+              @input="editor.setAvailableWait(Number(($event.target as HTMLInputElement).value))"
+            >
+            <span>seconds a wait for a monitor to become Available lasts, Check monitors included</span>
+          </label>
+          <span v-if="editor.availableWaitRule.value" class="rule" role="alert">{{ editor.availableWaitRule.value }}</span>
         </details>
       </section>
 
@@ -452,7 +466,8 @@ ul {
   font-size: var(--text-md);
 }
 
-.drop-wait {
+.drop-wait,
+.available-wait {
   width: var(--col-primary);
   height: var(--row-h);
   padding: 0 var(--space-2);

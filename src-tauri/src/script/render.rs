@@ -25,7 +25,10 @@
 //! see [`super::progress`] for the parser. The rows are the layout's [`timeline`]:
 //! Check monitors, the steps before the apply, Apply arrangement, the steps after it,
 //! Verify, numbered over the whole switch; a cancel is refused from the apply row on.
-//! A failed line's text is
+//! A needs-you line's text is `<waiting>: <action>; <n> s left of <total> s`, printed
+//! every second while the script waits for a physical action (every ten seconds from
+//! a shortcut launch, and the log keeps every tenth line either way), after the band's
+//! two lines once. A failed line's text is
 //! `<step name>: <next action>; <reason>`, with ` (Windows error N)` appended when a
 //! code exists; [`super::progress::ProgressLine::failure_parts`] splits it. The
 //! check step's reason is `Absent: <label>, <label>`, so the app can name the
@@ -51,7 +54,7 @@ use crate::config::layouts::{
 };
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 4;
+pub const TEMPLATE_VERSION: u32 = 5;
 
 /// The fixed rows of every switch, by name.
 pub const CHECK_ROW: &str = "Check monitors";
@@ -261,8 +264,12 @@ fn step_block(row: u32, step: &Step, label: &dyn Fn(&str) -> String) -> String {
                 WaitRule::Drop => "drop",
                 WaitRule::Available => "available",
             };
+            let side = match step.side {
+                StepSide::Before => "before",
+                StepSide::After => "after",
+            };
             lines.push(format!(
-                "Send-InputSource -Row {row} -Sentence '{sentence}' -DevicePath '{}' -Label '{}' -Code {input_source} -InputName '{}' -Wait '{wait}'",
+                "Send-InputSource -Row {row} -Sentence '{sentence}' -DevicePath '{}' -Label '{}' -Code {input_source} -InputName '{}' -Wait '{wait}' -Side '{side}'",
                 ps_escape(device_path),
                 ps_escape(&label(device_path)),
                 ps_escape(&crate::hardware::input_source::name(*input_source)),
@@ -537,13 +544,16 @@ mod tests {
             .lines()
             .find(|l| l.starts_with("Send-InputSource -Row 2 "))
             .expect("the send call");
-        assert!(call.contains("-Label 'Ultrawide' -Code 17 -InputName 'HDMI 1' -Wait 'drop'"), "{call}");
+        assert!(call.contains("-Label 'Ultrawide' -Code 17 -InputName 'HDMI 1' -Wait 'drop' -Side 'before'"), "{call}");
         assert!(call.contains("AUS343F"), "{call}");
         assert!(text.contains("$DropWaitSeconds      = 8"), "{text}");
         assert!(text.contains("$AvailableWaitSeconds = 120"));
         assert!(text.contains("function Send-InputSource"));
         assert!(text.contains("SetVCPFeature"));
         assert!(text.contains("SetLastError = true"));
+        assert!(text.contains("function Wait-Available"));
+        assert!(text.contains("'needs-you'"));
+        assert!(text.contains("$AvailableSettleSeconds = 3"));
 
         let (_, desk_return, aliases) = fixtures().remove(5);
         let t = timeline(&desk_return, &aliases);
@@ -555,7 +565,7 @@ mod tests {
         let apply_at = text.find("Write-Step $ApplyStep 'done'").unwrap();
         let verify_at = text.find("Write-Step $VerifyStep 'running'").unwrap();
         assert!(apply_at < send_at && send_at < verify_at);
-        assert!(text.contains("-Label 'unknown monitor' -Code 30 -InputName 'Input 0x1E' -Wait 'available'"), "{text}");
+        assert!(text.contains("-Label 'unknown monitor' -Code 30 -InputName 'Input 0x1E' -Wait 'available' -Side 'after'"), "{text}");
     }
 
     #[test]
@@ -634,7 +644,7 @@ mod tests {
         assert_eq!(header, "# Steps: [1/6] Check monitors  [2/6] Wait 3 seconds  [3/6] Apply arrangement  [4/6] Wait 1 second  [5/6] Wait 10 seconds  [6/6] Verify");
         assert!(text.contains("$StepCount     = 6"));
         assert!(text.contains("[Console]::OutputEncoding"));
-        assert!(text.contains(&format!("(\"{ABSENT_REASON_PREFIX}{{0}}\" -f ($absent -join ', '))")), "{text}");
+        assert!(text.contains(&format!("(\"{ABSENT_REASON_PREFIX}{{0}}\" -f $names)")), "{text}");
         let mut seen = 0;
         for line in text.lines() {
             let Some(rest) = line.trim_start().strip_prefix("Write-Step ") else {

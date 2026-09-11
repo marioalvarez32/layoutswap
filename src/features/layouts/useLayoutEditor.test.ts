@@ -46,6 +46,11 @@ describe('useLayoutEditor', () => {
     expect(result.dropWaitRule.value).toBeNull();
     result.setDropWait(61);
     expect(result.dropWaitRule.value).toContain('between 0 and 60');
+    result.setAvailableWait(90);
+    expect(result.edits.value.availableWaitSeconds).toBe(90);
+    expect(result.availableWaitRule.value).toBeNull();
+    result.setAvailableWait(0);
+    expect(result.availableWaitRule.value).toContain('between 1 and 600');
   });
 
   it('saves the draft through the command and picks up the stored layout', async () => {

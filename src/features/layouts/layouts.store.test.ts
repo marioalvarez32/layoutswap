@@ -56,9 +56,9 @@ describe('layouts store: switch', () => {
     expect(store.switchRun!.steps.map((s) => s.name)).toEqual(['Check monitors', 'Apply arrangement', 'Verify']);
 
     script.emit({ kind: 'log', text: '=== Switch to Desk ===' });
-    script.emit({ kind: 'progress', line: { step: 1, of: 3, status: 'running', text: 'Check monitors' } });
+    script.emit({ kind: 'progress', line: { step: 1, of: 3, status: 'running', text: 'Check monitors', parts: null } });
     script.emit({ kind: 'log', text: '  Side: Available' });
-    script.emit({ kind: 'progress', line: { step: 1, of: 3, status: 'done', text: 'Check monitors' } });
+    script.emit({ kind: 'progress', line: { step: 1, of: 3, status: 'done', text: 'Check monitors', parts: null } });
     expect(store.switchRun!.steps[0]).toMatchObject({ status: 'done' });
     expect(store.switchRun!.log).toEqual(['=== Switch to Desk ===', '  Side: Available']);
 
@@ -126,7 +126,7 @@ describe('layouts store: switch', () => {
     void store.switchTo('layout-desk');
     await flushPromises();
     script.emit(STARTED);
-    script.emit({ kind: 'progress', line: { step: 2, of: 3, status: 'running', text: 'Apply arrangement' } });
+    script.emit({ kind: 'progress', line: { step: 2, of: 3, status: 'running', text: 'Apply arrangement', parts: null } });
     vi.mocked(cancelSwitch).mockRejectedValueOnce({ message: 'Wait for the switch to Desk to finish: the arrangement is already being applied and cannot be stopped.', logPath: null });
 
     await store.cancelSwitch();

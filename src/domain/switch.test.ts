@@ -5,6 +5,8 @@ import {
   applyProgress,
   canCancel,
   cancelledNote,
+  needsYouBand,
+  stepChipLabel,
   describeVerifyFailure,
   failureBand,
   formatSeconds,
@@ -20,8 +22,8 @@ function run(overrides: Partial<SwitchRun> = {}): SwitchRun {
   return { ...newSwitchRun({ id: 'layout-desk', name: 'Desk' }, STEPS, 2, 1_000), ...overrides };
 }
 
-function line(step: number, status: ProgressLine['status'], text: string): ProgressLine {
-  return { step, of: 3, status, text };
+function line(step: number, status: ProgressLine['status'], text: string, parts: ProgressLine['parts'] = null): ProgressLine {
+  return { step, of: 3, status, text, parts };
 }
 
 function failed(overrides: Partial<Extract<SwitchResult, { outcome: 'failed' }>> = {}): SwitchResult {
@@ -63,7 +65,7 @@ describe('applyProgress', () => {
   });
 
   it('ignores a step the started event did not list', () => {
-    const steps = applyProgress(run().steps, { step: 4, of: 4, status: 'running', text: 'Refresh RDP profiles' });
+    const steps = applyProgress(run().steps, { step: 4, of: 4, status: 'running', text: 'Refresh RDP profiles', parts: null });
     expect(steps).toEqual(run().steps);
   });
 
@@ -108,6 +110,31 @@ describe('stepTone', () => {
     expect(stepTone('done')).toBe('good');
     expect(stepTone('failed')).toBe('crit');
     expect(stepTone('skipped')).toBe('mute');
+    expect(stepTone('needsYou')).toBe('warn');
+  });
+});
+
+describe('stepChipLabel', () => {
+  it('names the needs-you chip in words', () => {
+    expect(stepChipLabel('needsYou')).toBe('needs you');
+    expect(stepChipLabel('done')).toBe('done');
+  });
+});
+
+describe('needsYouBand', () => {
+  it('reads the action and the countdown from the row that needs you', () => {
+    const r = run();
+    const parts = { name: 'Waiting until Ultrawide is Available', action: 'press the input button on Ultrawide, or turn the other device off', detail: '92 s left of 120 s' };
+    r.steps = applyProgress(r.steps, line(1, 'needsYou', 'Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 92 s left of 120 s', parts));
+    expect(r.steps[0]).toMatchObject({ status: 'needsYou', text: 'Check monitors', parts });
+    expect(needsYouBand(r)).toEqual({
+      action: 'Press the input button on Ultrawide, or turn the other device off.',
+      waiting: 'Waiting until Ultrawide is Available · 92 s left of 120 s',
+    });
+    expect(canCancel(r)).toBe(true);
+    r.steps = applyProgress(r.steps, line(1, 'done', 'Check monitors'));
+    expect(needsYouBand(r)).toBeNull();
+    expect(needsYouBand(run({ result: { outcome: 'cancelled', sent: [] } }))).toBeNull();
   });
 });
 

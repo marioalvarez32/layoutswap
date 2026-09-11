@@ -292,12 +292,12 @@ impl App {
         match last_failed {
             Some(line) => {
                 let explanation = self.explain(layout, config, timeline, &line);
-                let parts = line.failure_parts();
+                let parts = line.parts.clone().unwrap_or_default();
                 SwitchResult::Failed {
                     step: Some(line.step),
-                    step_name: parts.step_name,
-                    next_action: parts.next_action,
-                    reason: parts.reason,
+                    step_name: parts.name,
+                    next_action: parts.action,
+                    reason: parts.detail,
                     exit_code,
                     log_path,
                     explanation,
@@ -354,7 +354,7 @@ impl App {
                     })
                     .unwrap_or_default();
                 let monitors = if from_probe.is_empty() {
-                    absent_from_reason(&line.failure_parts().reason)
+                    absent_from_reason(&line.parts.clone().unwrap_or_default().detail)
                 } else {
                     from_probe
                 };
@@ -838,6 +838,110 @@ mod tests {
             }
             other => panic!("expected Failed, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_needs_you_wait_reaches_the_screen_as_one_row_counting_down_then_applies() {
+        let lines = &[
+            "[1/3] running Check monitors",
+            "  Ultrawide: Absent",
+            "Press the input button on Ultrawide, or turn the other device off.",
+            "Waiting until Ultrawide is Available",
+            "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 120 s left of 120 s",
+            "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 119 s left of 120 s",
+            "  Available; settling",
+            "[1/3] done Check monitors",
+            "[2/3] done Apply arrangement",
+            "[3/3] done Verify",
+            "Exit code 0",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(lines, 0));
+        let (result, events) = collect(&app, &layout.id);
+        assert!(matches!(result.unwrap(), SwitchResult::Applied { .. }));
+        let progress = progress_lines(&events);
+        assert_eq!(progress[1], "1/3 NeedsYou Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 120 s left of 120 s");
+        assert_eq!(progress[2], "1/3 NeedsYou Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 119 s left of 120 s");
+        assert_eq!(progress[3], "1/3 Done Check monitors");
+    }
+
+    #[test]
+    fn a_wait_that_times_out_fails_with_the_input_button_action() {
+        let lines = &[
+            "[1/3] running Check monitors",
+            "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 1 s left of 120 s",
+            "[1/3] failed Check monitors: press the input button on Ultrawide, or plug it in, then switch again; Absent: Ultrawide",
+            "Exit code 2",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(lines, 2));
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed {
+                step,
+                next_action,
+                explanation,
+                ..
+            } => {
+                assert_eq!(step, Some(1));
+                assert!(next_action.starts_with("press the input button on Ultrawide"));
+                assert_eq!(
+                    explanation,
+                    FailureExplanation::Absent {
+                        monitors: vec!["Ultrawide".into()]
+                    }
+                );
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_send_step_whose_available_wait_times_out_fails_with_its_own_action() {
+        let edits = send_edits();
+        let lines = &[
+            "[1/4] done Check monitors",
+            "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+            "[2/4] needs-you Waiting until KG241Y X1 is Available: press the input button on KG241Y X1, or turn the other device off; 1 s left of 120 s",
+            "[2/4] failed Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops: press the input button on KG241Y X1, or turn the other device off, then switch again; KG241Y X1 not Available after 120 s",
+            "Exit code 2",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(lines, 2));
+        app.save_layout(&layout.id, edits).unwrap();
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed {
+                step,
+                next_action,
+                reason,
+                ..
+            } => {
+                assert_eq!(step, Some(2));
+                assert_eq!(next_action, "press the input button on KG241Y X1, or turn the other device off, then switch again");
+                assert_eq!(reason, "KG241Y X1 not Available after 120 s");
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_cancel_during_a_wait_resolves_cancelled() {
+        let (runner, gate) = FakeScriptRunner::with_stdout(FIVE)
+            .streaming(
+                &[
+                    "[1/3] running Check monitors",
+                    "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 120 s left of 120 s",
+                    "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 119 s left of 120 s",
+                ],
+                0,
+            )
+            .pausing_after(2);
+        let (_dir, app, layout) = app_with(runner);
+        let run = {
+            let app = Arc::clone(&app);
+            let id = layout.id.clone();
+            thread::spawn(move || collect(&app, &id))
+        };
+        wait_until(|| gate.parked());
+        app.cancel_switch().unwrap();
+        let (result, _) = run.join().unwrap();
+        assert_eq!(result.unwrap(), SwitchResult::Cancelled { sent: vec![] });
     }
 
     #[test]

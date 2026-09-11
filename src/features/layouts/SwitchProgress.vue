@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { canCancel, cancelledNote, failureBand, stepTone, switchHeadline, type SwitchRun } from '@/domain/switch';
+import { canCancel, cancelledNote, failureBand, needsYouBand, stepChipLabel, stepTone, switchHeadline, type SwitchRun } from '@/domain/switch';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import { useElapsed } from './useElapsed';
@@ -25,6 +25,7 @@ const { elapsedMs } = useElapsed(() => props.run.startedAt, running);
 const headline = computed(() => switchHeadline(props.run, elapsedMs.value));
 const failure = computed(() => failureBand(props.run));
 const cancelled = computed(() => cancelledNote(props.run));
+const needsYou = computed(() => needsYouBand(props.run));
 const cancelAllowed = computed(() => canCancel(props.run));
 const steps = computed(() => props.run.steps.map((s) => ({ ...s, tone: stepTone(s.status) })));
 const logText = computed(() => props.run.log.join('\n'));
@@ -63,6 +64,10 @@ const logText = computed(() => props.run.log.join('\n'));
           </Button>
         </div>
       </div>
+      <div v-if="needsYou" class="band warn needs-you" role="status">
+        <strong class="action">{{ needsYou.action }}</strong>
+        <span class="detail">{{ needsYou.waiting }}</span>
+      </div>
       <p v-if="cancelled" class="band warn cancelled-note">
         {{ cancelled }}
       </p>
@@ -83,7 +88,7 @@ const logText = computed(() => props.run.log.join('\n'));
             :class="s.status"
           >
             <Chip :tone="s.tone" class="status">
-              {{ s.status }}
+              {{ stepChipLabel(s.status) }}
             </Chip>
             <span class="step-text">{{ s.text }}</span>
           </li>
@@ -217,6 +222,23 @@ h2 {
   border-color: var(--warn);
   background: var(--warn-soft);
   color: var(--warn);
+}
+
+.band.needs-you {
+  border-left-width: var(--mark-w);
+  color: var(--ink);
+}
+
+.band.needs-you .action {
+  font-family: var(--display);
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+.band.needs-you .detail {
+  font-family: var(--data);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
 }
 
 .notice {

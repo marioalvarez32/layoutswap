@@ -108,10 +108,14 @@ describe('LayoutDetail', () => {
     expect((dropWait.element as HTMLInputElement).value).toBe('5');
     await dropWait.setValue('8');
     await flushPromises();
-    expect(wrapper.find('.advanced summary').text()).toBe('Advanced: drop wait 8 s');
+    const availableWait = wrapper.find('input.available-wait');
+    expect((availableWait.element as HTMLInputElement).value).toBe('120');
+    await availableWait.setValue('90');
+    await flushPromises();
+    expect(wrapper.find('.advanced summary').text()).toBe('Advanced: drop wait 8 s · Available wait 90 s');
     await wrapper.find('.actions button.save').trigger('click');
     await flushPromises();
-    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ dropWaitSeconds: 8, steps: [expect.objectContaining({ kind: 'sendInput', devicePath: 'path-acer' })] }));
+    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ dropWaitSeconds: 8, availableWaitSeconds: 90, steps: [expect.objectContaining({ kind: 'sendInput', devicePath: 'path-acer' })] }));
   });
 
   it('discards the draft back to the layout', async () => {

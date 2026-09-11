@@ -1,7 +1,7 @@
 import { computed, ref, toValue, type MaybeRefOrGetter } from 'vue';
 import { errorMessage } from '@/domain/errors';
 import type { Step, StepSide } from '@/domain/generated/types';
-import { addStep as appendStep, checkDropWait, newWaitStep } from '@/domain/steps';
+import { addStep as appendStep, checkAvailableWait, checkDropWait, newWaitStep } from '@/domain/steps';
 import { useLayoutsStore } from './layouts.store';
 
 /**
@@ -35,6 +35,13 @@ export function useLayoutEditor(layoutId: MaybeRefOrGetter<string>) {
 
   const dropWaitRule = computed(() => checkDropWait(edits.value.dropWaitSeconds));
 
+  /** Sets the Available wait; the field's rule shows while out of bounds. */
+  function setAvailableWait(seconds: number) {
+    store.edit(toValue(layoutId), { ...edits.value, availableWaitSeconds: seconds });
+  }
+
+  const availableWaitRule = computed(() => checkAvailableWait(edits.value.availableWaitSeconds));
+
   /** Saves the draft; a refusal lands in `error` and the draft stays. */
   async function save() {
     if (saving.value || !dirty.value) {
@@ -56,7 +63,7 @@ export function useLayoutEditor(layoutId: MaybeRefOrGetter<string>) {
     store.discardDraft();
   }
 
-  return { edits, dirty, saving, error, setSteps, addStep, setDropWait, dropWaitRule, save, discard };
+  return { edits, dirty, saving, error, setSteps, addStep, setDropWait, dropWaitRule, setAvailableWait, availableWaitRule, save, discard };
 }
 
 /** A step id: random, so two steps never collide, the one effect this file holds. */

@@ -8,14 +8,14 @@ const STEPS = ['Check monitors', 'Apply arrangement', 'Verify'];
 
 function running(): SwitchRun {
   const run = newSwitchRun({ id: 'layout-desk', name: 'Desk' }, STEPS, 2, 10_000);
-  run.steps = applyProgress(run.steps, { step: 1, of: 3, status: 'done', text: 'Check monitors' });
+  run.steps = applyProgress(run.steps, { step: 1, of: 3, status: 'done', text: 'Check monitors', parts: null });
   run.log = ['=== Switch to Desk ===', '  Side: Available', '  Built-in display: Available'];
   return run;
 }
 
 function checkFailed(): SwitchRun {
   const run = running();
-  run.steps = applyProgress(run.steps, { step: 1, of: 3, status: 'failed', text: 'Check monitors: press the input button on Ultrawide, or plug it in, then switch again; 1 Absent' });
+  run.steps = applyProgress(run.steps, { step: 1, of: 3, status: 'failed', text: 'Check monitors: press the input button on Ultrawide, or plug it in, then switch again; 1 Absent', parts: { name: 'Check monitors', action: 'press the input button on Ultrawide, or plug it in, then switch again', detail: '1 Absent' } });
   run.result = {
     outcome: 'failed',
     step: 1,
@@ -32,8 +32,8 @@ function checkFailed(): SwitchRun {
 
 function verifyFailed(): SwitchRun {
   const run = running();
-  run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'done', text: 'Apply arrangement' });
-  run.steps = applyProgress(run.steps, { step: 3, of: 3, status: 'failed', text: 'Verify: arrange the monitors in Windows Settings > Display, then save the layout again; Side landed at 3440,0 instead of 3440,180' });
+  run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'done', text: 'Apply arrangement', parts: null });
+  run.steps = applyProgress(run.steps, { step: 3, of: 3, status: 'failed', text: 'Verify: arrange the monitors in Windows Settings > Display, then save the layout again; Side landed at 3440,0 instead of 3440,180', parts: { name: 'Verify', action: 'arrange the monitors in Windows Settings > Display, then save the layout again', detail: 'Side landed at 3440,0 instead of 3440,180' } });
   const result: SwitchResult = {
     outcome: 'failed',
     step: 3,
@@ -104,11 +104,29 @@ describe('SwitchProgress', () => {
 
     it('disables Cancel once the apply step reports running', () => {
       const run = running();
-      run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'running', text: 'Apply arrangement' });
+      run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'running', text: 'Apply arrangement', parts: null });
       const wrapper = mountRun(run);
       expect(wrapper.find('button.cancel').attributes('disabled')).toBeDefined();
       expect(wrapper.text()).toContain('Cancel is off while the arrangement is being applied.');
       expect(wrapper.findAll('.step')[1]!.classes()).toContain('running');
+    });
+
+    it('shows the needs-you band with the action first and the seconds left, Cancel still on', async () => {
+      const run = running();
+      run.steps = applyProgress(newSwitchRun({ id: 'layout-desk', name: 'Desk' }, STEPS, 2, 10_000).steps, {
+        step: 1, of: 3, status: 'needsYou',
+        text: 'Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 92 s left of 120 s',
+        parts: { name: 'Waiting until Ultrawide is Available', action: 'press the input button on Ultrawide, or turn the other device off', detail: '92 s left of 120 s' },
+      });
+      const wrapper = mountRun(run);
+      expect(wrapper.find('.band.needs-you .action').text()).toBe('Press the input button on Ultrawide, or turn the other device off.');
+      expect(wrapper.find('.band.needs-you .detail').text()).toBe('Waiting until Ultrawide is Available · 92 s left of 120 s');
+      expect(wrapper.findAll('.step')[0]!.find('.step-text').text()).toBe('Check monitors');
+      expect(wrapper.findAll('.step')[0]!.find('.chip').text()).toBe('needs you');
+      expect(wrapper.findAll('.step')[0]!.find('.chip').classes()).toContain('warn');
+      expect(wrapper.find('button.cancel').attributes('disabled')).toBeUndefined();
+      await wrapper.find('button.cancel').trigger('click');
+      expect(wrapper.emitted('cancel')).toHaveLength(1);
     });
 
     it('shows a refused action beside the buttons', () => {
@@ -122,8 +140,8 @@ describe('SwitchProgress', () => {
   describe('when done', () => {
     it('says Applied in N s and offers Back to the layout', async () => {
       const run = running();
-      run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'skipped', text: 'Apply arrangement: already applied' });
-      run.steps = applyProgress(run.steps, { step: 3, of: 3, status: 'done', text: 'Verify' });
+      run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'skipped', text: 'Apply arrangement: already applied', parts: null });
+      run.steps = applyProgress(run.steps, { step: 3, of: 3, status: 'done', text: 'Verify', parts: null });
       run.result = { outcome: 'applied', durationMs: 11_400 };
       run.finishedAt = 21_400;
       const wrapper = mountRun(run);

@@ -106,6 +106,14 @@ script: ScriptRecord | null, };
 export type LayoutEdits = { steps: Array<Step>, dropWaitSeconds: number, availableWaitSeconds: number, onApplyFailure: ApplyFailure, };
 
 /**
+ * The three pieces of a failed or needs-you line's text, `<name>: <action>; <detail>`:
+ * for a failure the step name, the next action and the reason; for a needs-you line
+ * what the script waits for, the physical action, and the seconds left. Missing
+ * pieces come back empty.
+ */
+export type LineParts = { name: string, action: string, detail: string, };
+
+/**
  * One physical monitor, identified by its device path (ADR-0005).
  */
 export type Monitor = { devicePath: string, 
@@ -157,7 +165,11 @@ step: number, of: number, status: StepStatus,
 /**
  * The step name, with the reason appended after a colon on a failure.
  */
-text: string, };
+text: string, 
+/**
+ * The text split into its parts, for a failed or needs-you line; null otherwise.
+ */
+parts: LineParts | null, };
 
 /**
  * What the app knows about a layout's generated script.
@@ -215,7 +227,7 @@ inputSource: number, wait: WaitRule, };
  */
 export type StepSide = "before" | "after";
 
-export type StepStatus = "running" | "done" | "failed" | "skipped";
+export type StepStatus = "running" | "done" | "failed" | "skipped" | "needsYou";
 
 /**
  * The readable description of a layout's arrangement, derived at capture.

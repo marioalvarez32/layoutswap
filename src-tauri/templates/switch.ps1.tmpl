@@ -8,7 +8,9 @@
 #
 # Steps: {{STEPS_HEADER}}
 # Progress lines read "[step/of] status text" where status is running, done,
-# failed or skipped. Every other line is log. Every line also lands in switch.log
+# failed, skipped or needs-you. A needs-you line repeats while the script waits
+# for you, with the seconds left: every second for the app, every ten seconds in
+# a console, and the log keeps every tenth. Every other line is log. Every line also lands in switch.log
 # beside this script, with a timestamp. Re-running a script whose arrangement is
 # already applied skips the apply with a log line and verifies. The layout's own
 # steps sit around the apply; a validate-only run skips them.
@@ -57,8 +59,9 @@ try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } c
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogPath       = Join-Path $ScriptDir 'switch.log'
 $LockPath      = Join-Path $AppRoot 'switch.lock'
-$SettleSeconds = 2   # Windows finishes an apply asynchronously; the after-steps and verify wait this long first
-$DdcTimeoutMs  = 3000   # a send step's DDC-CI command gets this long to answer
+$SettleSeconds          = 2      # Windows finishes an apply asynchronously; the after-steps and verify wait this long first
+$DdcTimeoutMs           = 3000   # a send step's DDC-CI command gets this long to answer
+$AvailableSettleSeconds = 3      # a monitor that just came back settles this long before the apply
 $StepCount     = {{STEP_COUNT}}
 $ApplyStep     = {{APPLY_STEP}}
 $VerifyStep    = {{VERIFY_STEP}}
@@ -68,19 +71,20 @@ $script:CurrentStepName = ''
 # Every line printed also lands in switch.log with a timestamp, so a run started
 # from a shortcut can be checked afterwards.
 function Write-Host {
-    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)]$Object, [ConsoleColor]$ForegroundColor, [switch]$NoNewline)
+    param([Parameter(Position = 0, ValueFromRemainingArguments = $true)]$Object, [ConsoleColor]$ForegroundColor, [switch]$NoNewline, [switch]$NoLog)
     $text = "$Object"
-    try { Add-Content -Path $LogPath -Value ("{0:yyyy-MM-dd HH:mm:ss}  {1}" -f (Get-Date), $text) -Encoding UTF8 } catch { }
+    if (-not $NoLog) { try { Add-Content -Path $LogPath -Value ("{0:yyyy-MM-dd HH:mm:ss}  {1}" -f (Get-Date), $text) -Encoding UTF8 } catch { } }
     if ($PSBoundParameters.ContainsKey('ForegroundColor')) { Microsoft.PowerShell.Utility\Write-Host $text -ForegroundColor $ForegroundColor -NoNewline:$NoNewline }
     else { Microsoft.PowerShell.Utility\Write-Host $text -NoNewline:$NoNewline }
 }
 
 # One stable line per status change; the app parses these and a person can read them.
-function Write-Step([int]$step, [string]$status, [string]$text) {
+# -Quiet keeps a repeated needs-you line out of the log.
+function Write-Step([int]$step, [string]$status, [string]$text, [switch]$Quiet) {
     $script:CurrentStep = $step
-    $script:CurrentStepName = $text
-    $color = switch ($status) { 'done' { 'Green' } 'failed' { 'Red' } 'skipped' { 'DarkGray' } default { 'Cyan' } }
-    Write-Host ("[{0}/{1}] {2} {3}" -f $step, $StepCount, $status, $text) -ForegroundColor $color
+    if ($status -eq 'running') { $script:CurrentStepName = $text }
+    $color = switch ($status) { 'done' { 'Green' } 'failed' { 'Red' } 'skipped' { 'DarkGray' } 'needs-you' { 'Yellow' } default { 'Cyan' } }
+    Write-Host ("[{0}/{1}] {2} {3}" -f $step, $StepCount, $status, $text) -ForegroundColor $color -NoLog:$Quiet
 }
 
 # A failure line says what to do next, then what went wrong, then the Windows error code.
@@ -394,6 +398,46 @@ function Get-ApplyReason([int]$rc) {
 
 $ArrangeAgain = 'arrange the monitors in Windows Settings > Display, then save the layout again'
 
+# Waits until every monitor in $monitors (device path in lower case to label) is
+# Available, up to the layout's Available wait. Prints the band's two lines once, then
+# a needs-you progress line with the seconds left: every second for the app, every ten
+# seconds from a shortcut launch (-Pause), and the log keeps every tenth either way.
+# $action is the physical action with {0} for the monitor names. With $settle, a wait
+# that had to wait settles $AvailableSettleSeconds afterwards, for the apply that
+# follows. Returns the keys still Absent at the end.
+function Wait-Available([int]$row, [hashtable]$monitors, [string]$action, [bool]$settle) {
+    function Get-Absent { return ,@($monitors.Keys | Where-Object { -not (Test-Available $_) }) }
+    function Get-Names([string[]]$keys) { return (@($keys | ForEach-Object { $monitors[$_] }) -join ', ') }
+    $absent = Get-Absent
+    if ($absent.Count -eq 0) {
+        Write-Host ("  {0}: Available" -f (Get-Names @($monitors.Keys)))
+        return ,@()
+    }
+    $names = Get-Names $absent
+    $band = ($action -f $names)
+    Write-Host ($band.Substring(0, 1).ToUpper() + $band.Substring(1) + '.') -ForegroundColor Yellow
+    Write-Host ("Waiting until {0} is Available" -f $names)
+    $deadline = (Get-Date).AddSeconds($AvailableWaitSeconds)
+    $waited = $false
+    while ($true) {
+        $absent = Get-Absent
+        if ($absent.Count -eq 0 -or (Get-Date) -ge $deadline) { break }
+        $waited = $true
+        $names = Get-Names $absent
+        $left = [int][math]::Ceiling(($deadline - (Get-Date)).TotalSeconds)
+        $quiet = ($left % 10 -ne 0)
+        if (-not $Pause -or -not $quiet) {
+            Write-Step $row 'needs-you' (("Waiting until {0} is Available: " + $action + "; {1} s left of {2} s") -f $names, $left, $AvailableWaitSeconds) -Quiet:$quiet
+        }
+        Start-Sleep -Seconds 1
+    }
+    if ($absent.Count -eq 0 -and $waited) {
+        Write-Host ("  {0}: Available" -f (Get-Names @($monitors.Keys)))
+        if ($settle) { Write-Host "  settling"; Start-Sleep -Seconds $AvailableSettleSeconds }
+    }
+    return ,$absent
+}
+
 # Whether the monitor with this device path is Available right now: one display-config
 # query, cheap enough to poll.
 function Test-Available([string]$key) {
@@ -408,7 +452,7 @@ function Test-Available([string]$key) {
 # physical monitor is found; otherwise the step is skipped with a log line. A command
 # that fails stops the switch: the user picks the input on the monitor instead.
 function Send-InputSource {
-    param([int]$Row, [string]$Sentence, [string]$DevicePath, [string]$Label, [int]$Code, [string]$InputName, [string]$Wait)
+    param([int]$Row, [string]$Sentence, [string]$DevicePath, [string]$Label, [int]$Code, [string]$InputName, [string]$Wait, [string]$Side)
     $row = $Row; $sentence = $Sentence; $label = $Label; $inputName = $InputName; $wait = $Wait
     if ($ValidateOnly) { Write-Step $row 'skipped' ("{0}: validated only" -f $sentence); return }
     Write-Step $row 'running' $sentence
@@ -437,13 +481,11 @@ function Send-InputSource {
             else { Write-Host ("  {0} dropped" -f $label) }
         }
         'available' {
-            $deadline = (Get-Date).AddSeconds($AvailableWaitSeconds)
-            while ((Get-Date) -lt $deadline -and -not (Test-Available $key)) { Start-Sleep -Seconds 1 }
-            if (-not (Test-Available $key)) {
+            $still = Wait-Available $row @{ $key = $label } 'press the input button on {0}, or turn the other device off' ($Side -eq 'before')
+            if ($still.Count -gt 0) {
                 Write-Failure ("press the input button on {0}, or turn the other device off, then switch again" -f $label) ("{0} not Available after {1} s" -f $label, $AvailableWaitSeconds) 0
                 Finish 2
             }
-            Write-Host ("  {0} is Available" -f $label)
         }
     }
     Write-Step $row 'done' $sentence
@@ -481,15 +523,25 @@ Write-Step 1 'running' 'Check monitors'
 try {
     $live = Get-Live
     $absent = @()
+    $onLabels = @{}
     foreach ($m in $summary.monitors) {
         if (-not $m.on) { continue }
         $key = $m.devicePath.ToLowerInvariant()
+        $onLabels[$key] = $m.label
         if ($live.ContainsKey($key) -and $live[$key].available) { Write-Host ("  {0}: Available" -f $m.label) }
-        else { $absent += $m.label; Write-Host ("  {0}: Absent" -f $m.label) }
+        else { $absent += $key; Write-Host ("  {0}: Absent" -f $m.label) }
     }
     if ($absent.Count -gt 0) {
-        Write-Failure ("press the input button on {0}, or plug it in, then switch again" -f ($absent -join ', ')) ("Absent: {0}" -f ($absent -join ', ')) 0
-        Finish 2
+        # An Absent monitor may be showing another device, or be unplugged: wait for it.
+        $waitFor = @{}
+        foreach ($k in $absent) { $waitFor[$k] = $onLabels[$k] }
+        $still = Wait-Available 1 $waitFor 'press the input button on {0}, or plug it in' $true
+        if ($still.Count -gt 0) {
+            $names = (@($still | ForEach-Object { $onLabels[$_] }) -join ', ')
+            Write-Failure ("press the input button on {0}, or plug it in, then switch again" -f $names) ("Absent: {0}" -f $names) 0
+            Finish 2
+        }
+        $live = Get-Live
     }
     Write-Step 1 'done' 'Check monitors'
 } catch {

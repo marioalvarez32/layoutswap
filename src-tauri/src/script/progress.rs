@@ -5,8 +5,10 @@
 //! [step/of] status text
 //! ```
 //!
-//! where `status` is `running`, `done`, `failed` or `skipped`. Every other line the
-//! script prints is log.
+//! where `status` is one of the words below. The text of a failed or needs-you line has
+//! the shape the renderer documents, `<name>: <action>; <detail>`, and the parser
+//! splits it once into [`LineParts`] so no other layer parses text. Every other line
+//! the script prints is log.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -19,6 +21,9 @@ pub enum StepStatus {
     Done,
     Failed,
     Skipped,
+    /// Waiting for a physical action, repeated every second with the seconds left.
+    #[serde(rename = "needsYou")]
+    NeedsYou,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
@@ -31,41 +36,36 @@ pub struct ProgressLine {
     pub status: StepStatus,
     /// The step name, with the reason appended after a colon on a failure.
     pub text: String,
+    /// The text split into its parts, for a failed or needs-you line; null otherwise.
+    pub parts: Option<LineParts>,
 }
 
-/// The three pieces of a failed line's text, as the script's `Write-Failure` prints them:
-/// `<step name>: <next action>; <reason>`. Missing pieces come back empty.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FailureParts {
-    pub step_name: String,
-    pub next_action: String,
-    pub reason: String,
+/// The three pieces of a failed or needs-you line's text, `<name>: <action>; <detail>`:
+/// for a failure the step name, the next action and the reason; for a needs-you line
+/// what the script waits for, the physical action, and the seconds left. Missing
+/// pieces come back empty.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub struct LineParts {
+    pub name: String,
+    pub action: String,
+    pub detail: String,
 }
 
-impl ProgressLine {
-    /// Splits a failed line's text into the step name, the next action and the reason.
-    /// A line that is not a failure has no next action: the whole text is the step name.
-    pub fn failure_parts(&self) -> FailureParts {
-        if self.status != StepStatus::Failed {
-            return FailureParts {
-                step_name: self.text.clone(),
-                next_action: String::new(),
-                reason: String::new(),
-            };
-        }
-        let (step_name, rest) = match self.text.split_once(": ") {
-            Some((step, rest)) => (step.to_string(), rest),
-            None => (String::new(), self.text.as_str()),
-        };
-        let (next_action, reason) = match rest.split_once("; ") {
-            Some((action, reason)) => (action.to_string(), reason.to_string()),
-            None => (rest.to_string(), String::new()),
-        };
-        FailureParts {
-            step_name,
-            next_action,
-            reason,
-        }
+fn split_parts(text: &str) -> LineParts {
+    let (name, rest) = match text.split_once(": ") {
+        Some((name, rest)) => (name.to_string(), rest),
+        None => (String::new(), text),
+    };
+    let (action, detail) = match rest.split_once("; ") {
+        Some((action, detail)) => (action.to_string(), detail.to_string()),
+        None => (rest.to_string(), String::new()),
+    };
+    LineParts {
+        name,
+        action,
+        detail,
     }
 }
 
@@ -90,13 +90,17 @@ pub fn parse_progress_line(line: &str) -> Option<ProgressLine> {
         "done" => StepStatus::Done,
         "failed" => StepStatus::Failed,
         "skipped" => StepStatus::Skipped,
+        "needs-you" => StepStatus::NeedsYou,
         _ => return None,
     };
+    let text = text.trim().to_string();
+    let parts = matches!(status, StepStatus::Failed | StepStatus::NeedsYou).then(|| split_parts(&text));
     Some(ProgressLine {
         step,
         of,
         status,
-        text: text.trim().to_string(),
+        text,
+        parts,
     })
 }
 
@@ -112,7 +116,8 @@ mod tests {
                 step: 1,
                 of: 3,
                 status: StepStatus::Running,
-                text: "Check monitors".into()
+                text: "Check monitors".into(),
+                parts: None,
             })
         );
         assert_eq!(
@@ -125,6 +130,21 @@ mod tests {
                 .status,
             StepStatus::Skipped
         );
+        let waiting = parse_progress_line(
+            "[1/3] needs-you Waiting until Ultrawide is Available: press the input button on Ultrawide, or turn the other device off; 92 s left of 120 s",
+        )
+        .unwrap();
+        assert_eq!(waiting.status, StepStatus::NeedsYou);
+        assert!(waiting.text.ends_with("92 s left of 120 s"));
+        assert_eq!(
+            waiting.parts,
+            Some(LineParts {
+                name: "Waiting until Ultrawide is Available".into(),
+                action: "press the input button on Ultrawide, or turn the other device off".into(),
+                detail: "92 s left of 120 s".into(),
+            })
+        );
+        assert_eq!(serde_json::to_string(&waiting.status).unwrap(), "\"needsYou\"");
     }
 
     #[test]
@@ -145,19 +165,19 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            line.failure_parts(),
-            FailureParts {
-                step_name: "Check monitors".into(),
-                next_action: "press the input button on Ultrawide, or plug it in, then switch again".into(),
-                reason: "1 Absent".into(),
-            }
+            line.parts,
+            Some(LineParts {
+                name: "Check monitors".into(),
+                action: "press the input button on Ultrawide, or plug it in, then switch again".into(),
+                detail: "1 Absent".into(),
+            })
         );
         let bare = parse_progress_line("[2/3] failed Apply arrangement").unwrap();
-        assert_eq!(bare.failure_parts().step_name, "");
-        assert_eq!(bare.failure_parts().next_action, "Apply arrangement");
+        let parts = bare.parts.unwrap();
+        assert_eq!(parts.name, "");
+        assert_eq!(parts.action, "Apply arrangement");
         let done = parse_progress_line("[3/3] done Verify").unwrap();
-        assert_eq!(done.failure_parts().step_name, "Verify");
-        assert_eq!(done.failure_parts().next_action, "");
+        assert_eq!(done.parts, None);
     }
 
     #[test]

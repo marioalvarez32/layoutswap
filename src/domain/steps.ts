@@ -7,6 +7,8 @@ export const WAIT_SECONDS_MAX = 600;
 export const DEFAULT_WAIT_SECONDS = 3;
 /** The drop wait's bounds, in seconds. */
 export const DROP_WAIT_SECONDS_MAX = 60;
+/** The Available wait's bounds, in seconds. */
+export const AVAILABLE_WAIT_SECONDS_MAX = 600;
 /** The largest VCP code 0x60 value a monitor can hold. */
 export const INPUT_SOURCE_MAX = 0xff;
 /** The label for a step's monitor the layout does not know. */
@@ -181,6 +183,14 @@ export function checkWaitSeconds(value: number): string | null {
 export function checkDropWait(value: number): string | null {
   if (!Number.isInteger(value) || value < 0 || value > DROP_WAIT_SECONDS_MAX) {
     return `Keep the drop wait between 0 and ${DROP_WAIT_SECONDS_MAX} seconds.`;
+  }
+  return null;
+}
+
+/** The rule the Available wait field shows while typing; null when the value is fine. */
+export function checkAvailableWait(value: number): string | null {
+  if (!Number.isInteger(value) || value < 1 || value > AVAILABLE_WAIT_SECONDS_MAX) {
+    return `Keep the Available wait between 1 and ${AVAILABLE_WAIT_SECONDS_MAX} seconds.`;
   }
   return null;
 }

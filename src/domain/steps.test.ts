@@ -4,6 +4,7 @@ import { layoutFixture } from '@/test/fixtures';
 import {
   addStep,
   canMove,
+  checkAvailableWait,
   checkDropWait,
   checkInputCode,
   checkWaitSeconds,
@@ -118,6 +119,9 @@ describe('waitRuleHint and checkDropWait', () => {
     expect(checkDropWait(60)).toBeNull();
     expect(checkDropWait(61)).toContain('between 0 and 60');
     expect(checkDropWait(-1)).not.toBeNull();
+    expect(checkAvailableWait(120)).toBeNull();
+    expect(checkAvailableWait(0)).toContain('between 1 and 600');
+    expect(checkAvailableWait(601)).not.toBeNull();
   });
 });
 

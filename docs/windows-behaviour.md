@@ -12,9 +12,10 @@ most timing defaults trace back to one of these.
   the monitor to become Available again, which happens when the user presses the
   monitor's input button or the monitor has auto source detection enabled.
 - **Some monitors keep the link alive while showing another input.** The reference
-  ultrawide stays Available to Windows while displaying the console. The layout apply
-  is what turns it off; the wait after the DDC command is a short grace period, not
-  a guarantee.
+  ultrawide stays Available to Windows while displaying the console, and it keeps
+  answering DDC-CI reads over that link, reporting the input it now shows. The layout
+  apply is what turns it off; the drop wait ends early when the monitor reports the
+  new input, and its timeout is otherwise a short grace period, not a guarantee.
 - **A discrete GPU caps active displays.** The reference laptop's discrete GPU drives
   at most four active displays. With five connected, one is always off. A layout
   therefore records which connected monitors are on and which are off, and applying
@@ -41,6 +42,34 @@ most timing defaults trace back to one of these.
   "not answering" for the rest; a read that never returns keeps its handle until the
   probe exits. In clone mode one GDI name covers several physical monitors, which
   cannot be told apart, so it reads as not answering too.
+- **A sleeping monitor swallows a DDC-CI send.** With the panel in power saving, the
+  input source command returns success and nothing changes; the monitor has to be
+  awake (showing a picture) when the command arrives. Found on the reference
+  ultrawide during the steps slice: the switch log read "HDMI 1 sent" and the panel
+  stayed where it was. Wake the monitor first, or send only once it is Active and
+  showing something.
+- **A monitor's own sleep is readable over DDC-CI, and some monitors wake on command.**
+  VCP code 0xD6 (power mode) reads 1 awake, 2 standby, 4 off, 5 power off, and a read
+  takes well under a second like any VCP read. Which values a monitor accepts as a
+  write is in its capabilities string: on the reference machine the Acer declares
+  D6(01 02 04 05), so writing 1 should wake it; the two MSI panels answer 1 but declare
+  only D6(05), so they can be switched off this way but not woken; the built-in panel
+  answers no VCP read at all. The ultrawide was not active during the read, so its
+  power-mode support is unverified. Windows has no per-monitor sleep flag: display
+  config keeps a sleeping monitor Active and Available.
+- **Windows can wake only the displays it turned off itself.** `SetThreadExecutionState`
+  with `ES_DISPLAY_REQUIRED`, or a zero-distance `SendInput` mouse move, brings back
+  displays the power plan switched off; neither reaches a monitor that put itself to
+  sleep for lack of a signal on its current input.
+- **The DDC-CI capabilities string is slow.** Reading it took about four seconds per
+  panel on the reference machine, against well under a second for a single VCP read,
+  which is why the probe never reads it. It lists the writable power modes and the
+  input codes each monitor accepts.
+- **Refresh rates are per mode, not per monitor.** `EnumDisplaySettingsEx` on a GDI
+  name lists every mode a monitor offers with its `dmDisplayFrequency`, and the
+  display-config path target carries the refresh rate the arrangement applies. Not
+  used yet: layouts apply whatever rate was captured, and verify only warns on a
+  difference.
 - **Windows rejects an arrangement with a floating monitor.** Every active monitor
   must share an edge with the group that contains the primary.
 - **`SDC_TOPOLOGY_EXTEND` ignores any paths and modes handed to it.** `SetDisplayConfig`

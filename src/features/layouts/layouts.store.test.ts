@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -260,6 +260,19 @@ describe('layouts store: switch', () => {
     dirty();
     await store.capture('Desk', 'layout-desk');
     expect(store.dirty).toBe(false);
+  });
+
+  it('re-captures a layout from a fresh probe under its own id, unless it has unsaved edits', async () => {
+    const store = useLayoutsStore();
+    vi.mocked(captureLayout).mockResolvedValueOnce({ outcome: 'saved', layout: { ...layoutFixture(), capturedAt: '2026-09-11T10:00:00-05:00' } });
+    await store.recapture('layout-desk');
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(captureLayout).toHaveBeenCalledWith('Desk', 'layout-desk');
+    expect(store.layouts[0]?.capturedAt).toBe('2026-09-11T10:00:00-05:00');
+
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), dropWaitSeconds: 9 });
+    await expect(store.recapture('layout-desk')).rejects.toThrow('Save or discard');
+    expect(captureLayout).toHaveBeenCalledTimes(1);
   });
 
   it('does nothing when there is no run to cancel', async () => {

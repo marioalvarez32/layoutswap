@@ -777,9 +777,9 @@ mod tests {
                 &[
                     "[1/4] running Check monitors",
                     "[1/4] done Check monitors",
-                    "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
-                    "  KG241Y X1: HDMI 1 sent (was 0x0F)",
-                    "[2/4] done Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+                    "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 shows HDMI 1 or drops",
+                    "  KG241Y X1: HDMI 1 sent (was DisplayPort 1)",
+                    "[2/4] done Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 shows HDMI 1 or drops",
                     "[3/4] running Apply arrangement",
                 ],
                 0,
@@ -798,7 +798,7 @@ mod tests {
         assert_eq!(
             result.unwrap(),
             SwitchResult::Cancelled {
-                sent: vec!["Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops".into()]
+                sent: vec!["Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 shows HDMI 1 or drops".into()]
             }
         );
     }

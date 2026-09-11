@@ -6,8 +6,8 @@ import { useLayoutsStore } from './layouts.store';
 
 /**
  * The generated script of one layout as the detail shows it: the indicator line, and
- * the Open script, Open log and Regenerate script actions with their in-flight and
- * error state.
+ * the Open script, Open log, Regenerate script and Re-capture arrangement actions
+ * with their in-flight and error state.
  */
 export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
   const store = useLayoutsStore();
@@ -29,6 +29,11 @@ export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
     await run(() => store.regenerateScript(toValue(layoutId)));
   }
 
+  /** Re-captures the arrangement Windows shows now into this layout, steps kept. */
+  async function recapture() {
+    await run(() => store.recapture(toValue(layoutId)));
+  }
+
   async function run(action: () => Promise<void>) {
     if (busy.value) {
       return;
@@ -44,5 +49,5 @@ export function useLayoutScript(layoutId: MaybeRefOrGetter<string>) {
     }
   }
 
-  return { indicator, busy, error, open, openSwitchLog, regenerate };
+  return { indicator, busy, error, open, openSwitchLog, regenerate, recapture };
 }

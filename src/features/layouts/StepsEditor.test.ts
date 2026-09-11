@@ -21,7 +21,7 @@ function send(id: string, side: Step['side'], devicePath: string, inputSource: n
 const STEPS: Step[] = [wait('a', 'before', 3), wait('b', 'before', 5), wait('c', 'after', 1)];
 const layout = layoutFixture();
 const labelOf = stepLabeller({ 'path-ultrawide': 'Ultrawide' }, layout.summary.monitors);
-const monitors = layout.summary.monitors.map((m) => ({ devicePath: m.devicePath, label: labelOf(m.devicePath), currentInput: m.devicePath === 'path-acer' ? 0x11 : null }));
+const monitors = layout.summary.monitors.map((m) => ({ devicePath: m.devicePath, label: labelOf(m.devicePath), on: m.on, currentInput: m.devicePath === 'path-acer' ? 0x11 : null }));
 
 function mountEditor(steps: Step[]) {
   return mount(StepsEditor, {
@@ -102,12 +102,13 @@ describe('StepsEditor', () => {
     expect(inputOptions).toEqual(['DisplayPort 1', 'HDMI 1 (now)', 'Other code']);
     await wrapper.find('select.input').setValue('17');
     expect(lastChange(wrapper)[0]).toMatchObject({ inputSource: 0x11 });
+    expect(wrapper.findAll('select.monitor option').map((o) => o.text())).toContain('Ultrawide (off in this layout)');
     await wrapper.find('select.monitor').setValue('path-ultrawide');
     expect(lastChange(wrapper)[0]).toMatchObject({ devicePath: 'path-ultrawide' });
     await wrapper.find('select.wait').setValue('drop');
     expect(lastChange(wrapper)[0]).toMatchObject({ wait: 'drop' });
     await wrapper.setProps({ steps: [send('s', 'before', 'path-ultrawide', 0x11, 'drop')] });
-    expect(wrapper.find('.sentence').text()).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide drops');
+    expect(wrapper.find('.sentence').text()).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide shows HDMI 1 or drops');
     expect(wrapper.find('select.wait ~ .faint').text()).toBe('up to 5 s');
   });
 
@@ -125,7 +126,7 @@ describe('StepsEditor', () => {
 
   it('warns under a send step whose monitor is off after the apply, expanded or not', async () => {
     const wrapper = mountEditor([send('s', 'after', 'path-ultrawide', 0x11)]);
-    expect(wrapper.find('.note').text()).toBe('Ultrawide is off after the apply, so this step will be skipped.');
+    expect(wrapper.find('.note').text()).toBe('Ultrawide is off after the apply, so this step will be skipped. Move it before the apply.');
     await wrapper.find('.sentence').trigger('click');
     expect(wrapper.find('.controls .note').text()).toContain('off after the apply');
   });
@@ -138,13 +139,18 @@ describe('StepsEditor', () => {
     expect((wrapper.find('select.monitor').element as HTMLSelectElement).value).toBe('gone');
   });
 
-  it('moves a step within its side and disables the move at the edge', async () => {
+  it('moves a step within its side, across the apply at the edge, and not past the ends', async () => {
     const wrapper = mountEditor(STEPS);
     await wrapper.findAll('.sentence')[1]!.trigger('click');
     expect(wrapper.find('.move-up').attributes('disabled')).toBeUndefined();
-    expect(wrapper.find('.move-down').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('.move-down').attributes('disabled')).toBeUndefined();
     await wrapper.find('.move-up').trigger('click');
     expect(lastChange(wrapper).map((s) => s.id)).toEqual(['b', 'a', 'c']);
+    await wrapper.find('.move-down').trigger('click');
+    expect(lastChange(wrapper).map((s) => [s.id, s.side])).toEqual([['a', 'before'], ['b', 'after'], ['c', 'after']]);
+
+    await wrapper.findAll('.sentence')[2]!.trigger('click');
+    expect(wrapper.find('.move-down').attributes('disabled')).toBeDefined();
   });
 
   it('removes a step and closes its controls', async () => {

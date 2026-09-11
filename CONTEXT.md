@@ -39,7 +39,8 @@ _Avoid_: wait mode, wait strategy
 
 **Drop**:
 A monitor stopping being Available to Windows after its input source changed. Some
-monitors never drop; the apply is what turns them off.
+monitors never drop and keep answering over the old link; for them the drop wait ends
+when the monitor reports the new input, and the apply is what turns them off.
 _Avoid_: disconnect, go dark, detach
 
 **Unknown monitor**:

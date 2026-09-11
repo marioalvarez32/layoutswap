@@ -43,6 +43,13 @@ describe('useLayoutScript', () => {
     expect(openScript).toHaveBeenCalledWith('layout-desk');
   });
 
+  it('re-captures the arrangement into the layout', async () => {
+    const { result } = withSetup(() => useLayoutScript('layout-desk'));
+    await result.recapture();
+    expect(useLayoutsStore().layouts[0]?.id).toBe('layout-desk');
+    expect(result.error.value).toBeNull();
+  });
+
   it('opens the switch log', async () => {
     const { result } = withSetup(() => useLayoutScript('layout-desk'));
     await result.openSwitchLog();

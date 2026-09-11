@@ -31,6 +31,7 @@ const labelOf = computed(() => stepLabeller(props.aliases, props.layout.summary.
 const stepMonitors = computed(() => props.layout.summary.monitors.map((m) => ({
   devicePath: m.devicePath,
   label: labelOf.value(m.devicePath),
+  on: m.on,
   currentInput: liveMonitor(props.inventory, m.devicePath)?.inputSource ?? null,
 })));
 const stepsEditor = ref<InstanceType<typeof StepsEditor> | null>(null);
@@ -108,6 +109,9 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
             Save
           </Button>
         </template>
+        <Button class="recapture" :disabled="script.busy.value" @click="script.recapture">
+          Re-capture arrangement
+        </Button>
         <Button :disabled="script.busy.value" @click="script.open">
           Open script
         </Button>
@@ -138,7 +142,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
       <section class="section">
         <div class="section-head">
           <h3>Arrangement</h3>
-          <span class="muted">Read-only. Edit in Windows Settings &gt; Display, then save again.</span>
+          <span class="muted">Read-only. Arrange in Windows Settings &gt; Display, then Re-capture arrangement.</span>
         </div>
         <div class="panel">
           <div class="arrangement">

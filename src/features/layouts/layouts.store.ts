@@ -157,6 +157,26 @@ export const useLayoutsStore = defineStore('layouts', () => {
     draft.value = null;
   }
 
+  /**
+   * Re-captures a layout's arrangement from a fresh probe under its own name, keeping
+   * its steps, timings and fallback. Failures throw. Refused while the layout has
+   * unsaved edits, so they are not lost under the new capture.
+   */
+  async function recapture(id: string) {
+    const layout = layouts.value.find((l) => l.id === id);
+    if (!layout) {
+      throw new Error('Pick the layout again from the sidebar: it is not in the list any more.');
+    }
+    if (isDraftDirty(id)) {
+      throw new Error('Save or discard the layout\'s changes first, then re-capture.');
+    }
+    await probe();
+    if (probeError.value) {
+      throw new Error(probeError.value);
+    }
+    await capture(layout.name, id);
+  }
+
   /** Rewrites a layout's script and clears its stale state. Failures throw. */
   async function regenerateScript(id: string) {
     const layout = await regenerate(id);
@@ -346,6 +366,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
     load,
     probe,
     capture,
+    recapture,
     editsFor,
     isDraftDirty,
     edit,

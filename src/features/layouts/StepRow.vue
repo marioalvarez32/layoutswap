@@ -19,6 +19,8 @@ import Button from '@/ui/Button.vue';
 export interface StepMonitor {
   devicePath: string;
   label: string;
+  /** On in the layout; an off monitor is gone after the apply. */
+  on: boolean;
   /** The input source it shows now, when the probe knows. */
   currentInput: number | null;
 }
@@ -209,7 +211,7 @@ const inputSelectValue = computed(() => (sendStep.value && !showOther.value ? St
                 :key="m.devicePath"
                 :value="m.devicePath"
               >
-                {{ m.label }}
+                {{ m.label }}{{ m.on ? '' : ' (off in this layout)' }}
               </option>
               <option v-if="!monitorKnown" :value="sendStep.devicePath">
                 {{ labelOf(sendStep.devicePath) }}

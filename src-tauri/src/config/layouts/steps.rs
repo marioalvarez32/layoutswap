@@ -56,7 +56,9 @@ pub enum StepKind {
 #[ts(export, export_to = "types.ts")]
 pub enum WaitRule {
     None,
-    /// Until the monitor stops being Available, up to the layout's drop wait.
+    /// Until the monitor reports the new input over DDC-CI or stops being Available,
+    /// up to the layout's drop wait. Some monitors keep the link alive while showing
+    /// another device, so the report is the signal that works for them.
     Drop,
     /// Until the monitor is Available again, up to the layout's Available wait.
     Available,
@@ -155,7 +157,7 @@ pub fn step_sentence(step: &Step, label: &dyn Fn(&str) -> String) -> String {
             let input = crate::hardware::input_source::name(*input_source);
             let tail = match wait {
                 WaitRule::None => String::new(),
-                WaitRule::Drop => format!(", then wait until {monitor} drops"),
+                WaitRule::Drop => format!(", then wait until {monitor} shows {input} or drops"),
                 WaitRule::Available => format!(", then wait until {monitor} is Available"),
             };
             format!("Send {input} to {monitor}{tail}")
@@ -253,7 +255,7 @@ mod tests {
         assert_eq!(step_sentence(&wait("a", StepSide::Before, 1), &label), "Wait 1 second");
         assert_eq!(
             step_sentence(&send("s", StepSide::Before, "ultra", 0x11, WaitRule::Drop), &label),
-            "Send HDMI 1 to Ultrawide, then wait until Ultrawide drops"
+            "Send HDMI 1 to Ultrawide, then wait until Ultrawide shows HDMI 1 or drops"
         );
         assert_eq!(
             step_sentence(&send("s", StepSide::After, "ultra", 0x0F, WaitRule::Available), &label),

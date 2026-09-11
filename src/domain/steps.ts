@@ -36,7 +36,7 @@ export function stepSentence(step: Step, labelOf: LabelOf, table: readonly Input
     case 'sendInput': {
       const monitor = labelOf(step.devicePath);
       const tail = step.wait === 'drop'
-        ? `, then wait until ${monitor} drops`
+        ? `, then wait until ${monitor} shows ${inputSourceName(table, step.inputSource)} or drops`
         : step.wait === 'available'
           ? `, then wait until ${monitor} is Available`
           : '';
@@ -91,7 +91,7 @@ export function sendStepNote(step: Step, layout: Pick<Layout, 'summary'>, labelO
     return 'This monitor is not in the layout any more, so the step will be skipped.';
   }
   if (step.side === 'after' && !monitor.on) {
-    return `${labelOf(step.devicePath)} is off after the apply, so this step will be skipped.`;
+    return `${labelOf(step.devicePath)} is off after the apply, so this step will be skipped. Move it before the apply.`;
   }
   return null;
 }
@@ -130,30 +130,44 @@ export function replaceStep(steps: readonly Step[], id: string, next: Step): Ste
 }
 
 /**
- * Moves a step one place up or down among the steps on its side. A step already at
- * the edge stays; a step never crosses the apply this way.
+ * Moves a step one row up or down the timeline. Among the steps on its side it swaps
+ * with its neighbour; at the edge of its side it crosses the apply, so the last step
+ * before becomes the first step after and the other way round. A step at the very
+ * top or bottom stays.
  */
 export function moveStep(steps: readonly Step[], id: string, direction: 'up' | 'down'): Step[] {
   const index = steps.findIndex((s) => s.id === id);
   if (index === -1) {
     return [...steps];
   }
-  const side = steps[index]!.side;
+  const step = steps[index]!;
+  const side = step.side;
   const neighbour = direction === 'up'
     ? steps.slice(0, index).map((s, i) => [s, i] as const).reverse().find(([s]) => s.side === side)
     : steps.slice(index + 1).map((s, i) => [s, index + 1 + i] as const).find(([s]) => s.side === side);
-  if (!neighbour) {
+  if (neighbour) {
+    const next = [...steps];
+    const [, j] = neighbour;
+    [next[index], next[j]] = [next[j]!, next[index]!];
+    return next;
+  }
+  // At the edge of its side: cross the apply, keeping the order on both sides.
+  const crossesUp = direction === 'up' && side === 'after';
+  const crossesDown = direction === 'down' && side === 'before';
+  if (!crossesUp && !crossesDown) {
     return [...steps];
   }
-  const next = [...steps];
-  const [, j] = neighbour;
-  [next[index], next[j]] = [next[j]!, next[index]!];
-  return next;
+  const moved: Step = { ...step, side: crossesUp ? 'before' : 'after' };
+  const rest = steps.filter((s) => s.id !== id);
+  const before = rest.filter((s) => s.side === 'before');
+  const after = rest.filter((s) => s.side === 'after');
+  return [...before, moved, ...after];
 }
 
-/** Whether a step can move in a direction: false at the edge of its side. */
+/** Whether a step can move in a direction: false only at the top or bottom of the timeline. */
 export function canMove(steps: readonly Step[], id: string, direction: 'up' | 'down'): boolean {
-  return moveStep(steps, id, direction).some((s, i) => s.id !== steps[i]?.id);
+  const next = moveStep(steps, id, direction);
+  return next.some((s, i) => s.id !== steps[i]?.id || s.side !== steps[i]?.side);
 }
 
 /** The editable part of a layout, as the editor starts from it. */

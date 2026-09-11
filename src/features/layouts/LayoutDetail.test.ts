@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Inventory } from '@/domain/generated/types';
 import { newSwitchRun } from '@/domain/switch';
-import { openLog, openScript, regenerateScript, saveLayout, switchLayout } from '@/tauri/commands';
+import { captureLayout, openLog, openScript, regenerateScript, saveLayout, switchLayout } from '@/tauri/commands';
 import { inventoryFixture, layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 import LayoutDetail from './LayoutDetail.vue';
@@ -32,22 +32,25 @@ describe('LayoutDetail', () => {
     expect(wrapper.find('.script-line').text()).toBe('Script up to date');
     expect(wrapper.find('.script-line').classes()).toContain('good');
     const buttons = wrapper.findAll('.actions button').map((b) => b.text());
-    expect(buttons).toEqual(['Open script', 'Open log', 'Regenerate script', 'Switch to Desk']);
+    expect(buttons).toEqual(['Re-capture arrangement', 'Open script', 'Open log', 'Regenerate script', 'Switch to Desk']);
 
-    await wrapper.findAll('.actions button')[0]!.trigger('click');
+    await wrapper.find('.actions button.recapture').trigger('click');
     await flushPromises();
-    expect(openScript).toHaveBeenCalledWith('layout-desk');
+    expect(captureLayout).toHaveBeenCalledWith('Desk', 'layout-desk');
     await wrapper.findAll('.actions button')[1]!.trigger('click');
     await flushPromises();
-    expect(openLog).toHaveBeenCalledWith('layout-desk');
+    expect(openScript).toHaveBeenCalledWith('layout-desk');
     await wrapper.findAll('.actions button')[2]!.trigger('click');
+    await flushPromises();
+    expect(openLog).toHaveBeenCalledWith('layout-desk');
+    await wrapper.findAll('.actions button')[3]!.trigger('click');
     await flushPromises();
     expect(regenerateScript).toHaveBeenCalledWith('layout-desk');
   });
 
   it('starts the switch from the primary action', async () => {
     const wrapper = mountDetail();
-    const switchButton = wrapper.findAll('.actions button')[3]!;
+    const switchButton = wrapper.findAll('.actions button')[4]!;
     expect(switchButton.classes()).toContain('primary');
     expect(switchButton.attributes('disabled')).toBeUndefined();
     await switchButton.trigger('click');
@@ -59,7 +62,7 @@ describe('LayoutDetail', () => {
     const store = useLayoutsStore();
     store.switchRun = newSwitchRun({ id: 'layout-film', name: 'Film' }, ['Check monitors'], 2, Date.now());
     const wrapper = mountDetail();
-    const switchButton = wrapper.findAll('.actions button')[3]!;
+    const switchButton = wrapper.findAll('.actions button')[4]!;
     expect(switchButton.attributes('disabled')).toBeDefined();
     expect(wrapper.find('.blocked').text()).toBe('Wait for the switch to Film to finish.');
   });
@@ -67,7 +70,7 @@ describe('LayoutDetail', () => {
   it('shows a refused switch in the band', async () => {
     vi.mocked(switchLayout).mockRejectedValueOnce({ message: 'Wait for the switch to Film to finish, then try again.', logPath: null });
     const wrapper = mountDetail();
-    await wrapper.findAll('.actions button')[3]!.trigger('click');
+    await wrapper.findAll('.actions button')[4]!.trigger('click');
     await flushPromises();
     expect(wrapper.find('.band.crit').text()).toContain('Wait for the switch to Film');
   });
@@ -143,7 +146,7 @@ describe('LayoutDetail', () => {
     const wrapper = mountDetail();
     expect(wrapper.find('h2').text()).toBe('Desk');
     expect(wrapper.text()).toContain('Captured 9 Sep at');
-    expect(wrapper.text()).toContain('Edit in Windows Settings > Display, then save again.');
+    expect(wrapper.text()).toContain('Arrange in Windows Settings > Display, then Re-capture arrangement.');
   });
 
   it('draws the schematic beside the summary table', () => {

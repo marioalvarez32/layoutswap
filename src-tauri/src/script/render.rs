@@ -57,7 +57,7 @@ use crate::config::layouts::{
 };
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 6;
+pub const TEMPLATE_VERSION: u32 = 7;
 
 /// The fixed rows of every switch, by name.
 pub const CHECK_ROW: &str = "Check monitors";
@@ -549,7 +549,7 @@ mod tests {
         let t = timeline(&console, &aliases);
         assert_eq!(
             t.rows[1],
-            "Send HDMI 1 to Ultrawide, then wait until Ultrawide drops"
+            "Send HDMI 1 to Ultrawide, then wait until Ultrawide shows HDMI 1 or drops"
         );
         assert_eq!(t.sends, vec![2]);
         let text = render(&console, &aliases);
@@ -565,6 +565,7 @@ mod tests {
         assert!(text.contains("SetVCPFeature"));
         assert!(text.contains("SetLastError = true"));
         assert!(text.contains("function Wait-Available"));
+        assert!(text.contains("ReadInput"), "the drop wait reads the input back");
         assert!(text.contains("'needs-you'"));
         assert!(text.contains("$AvailableSettleSeconds = 3"));
 

@@ -49,7 +49,7 @@ describe('stepSentence', () => {
   });
 
   it('reads a send step with its input, monitor and wait rule', () => {
-    expect(stepSentence(send('s', 'before', 'path-ultrawide', 0x11, 'drop'), labelOf, TABLE)).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide drops');
+    expect(stepSentence(send('s', 'before', 'path-ultrawide', 0x11, 'drop'), labelOf, TABLE)).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide shows HDMI 1 or drops');
     expect(stepSentence(send('s', 'after', 'path-ultrawide', 0x0f, 'available'), labelOf, TABLE)).toBe('Send DisplayPort 1 to Ultrawide, then wait until Ultrawide is Available');
     expect(stepSentence(send('s', 'after', 'gone', 0x1e), labelOf, TABLE)).toBe('Send Input 0x1E to unknown monitor');
   });
@@ -102,7 +102,7 @@ describe('newSendStep, withKind and sendStepNote', () => {
 
   it('warns about a send step whose monitor is off after the apply, or unknown', () => {
     const layout = layoutFixture();
-    expect(sendStepNote(send('s', 'after', 'path-ultrawide', 0x11), layout, labelOf)).toBe('Ultrawide is off after the apply, so this step will be skipped.');
+    expect(sendStepNote(send('s', 'after', 'path-ultrawide', 0x11), layout, labelOf)).toBe('Ultrawide is off after the apply, so this step will be skipped. Move it before the apply.');
     expect(sendStepNote(send('s', 'before', 'path-ultrawide', 0x11), layout, labelOf)).toBeNull();
     expect(sendStepNote(send('s', 'after', 'path-acer', 0x11), layout, labelOf)).toBeNull();
     expect(sendStepNote(send('s', 'before', 'gone', 0x11), layout, labelOf)).toContain('not in the layout any more');
@@ -157,20 +157,27 @@ describe('removeStep and replaceStep', () => {
 });
 
 describe('moveStep', () => {
-  it('swaps with the neighbour on the same side and stays at the edge', () => {
+  it('swaps with the neighbour on the same side', () => {
     expect(moveStep(STEPS, 'b', 'up').map((s) => s.id)).toEqual(['b', 'a', 'c']);
     expect(moveStep(STEPS, 'a', 'down').map((s) => s.id)).toEqual(['b', 'a', 'c']);
-    expect(moveStep(STEPS, 'a', 'up').map((s) => s.id)).toEqual(['a', 'b', 'c']);
-    // Never crosses the apply.
-    expect(moveStep(STEPS, 'b', 'down').map((s) => s.id)).toEqual(['a', 'b', 'c']);
-    expect(moveStep(STEPS, 'c', 'up').map((s) => s.id)).toEqual(['a', 'b', 'c']);
     expect(moveStep(STEPS, 'zzz', 'up').map((s) => s.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('crosses the apply at the edge of a side and stays at the ends of the timeline', () => {
+    const down = moveStep(STEPS, 'b', 'down');
+    expect(down.map((s) => [s.id, s.side])).toEqual([['a', 'before'], ['b', 'after'], ['c', 'after']]);
+    const up = moveStep(STEPS, 'c', 'up');
+    expect(up.map((s) => [s.id, s.side])).toEqual([['a', 'before'], ['b', 'before'], ['c', 'before']]);
+    expect(moveStep(STEPS, 'a', 'up')).toEqual(STEPS);
+    expect(moveStep(STEPS, 'c', 'down')).toEqual(STEPS);
+    expect(STEPS[1]!.side).toBe('before');
   });
 
   it('reports whether a move would change anything', () => {
     expect(canMove(STEPS, 'b', 'up')).toBe(true);
-    expect(canMove(STEPS, 'b', 'down')).toBe(false);
-    expect(canMove(STEPS, 'c', 'up')).toBe(false);
+    expect(canMove(STEPS, 'b', 'down')).toBe(true);
+    expect(canMove(STEPS, 'c', 'up')).toBe(true);
+    expect(canMove(STEPS, 'a', 'up')).toBe(false);
     expect(canMove(STEPS, 'c', 'down')).toBe(false);
   });
 });

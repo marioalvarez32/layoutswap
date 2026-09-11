@@ -40,7 +40,7 @@ src-tauri/
     shortcuts/            writes the per-layout .lnk and registers the scheduled task, through generated scripts (ADR-0001)
   templates/*.ps1.tmpl    included by render.rs at compile time
   tests/golden/*.ps1      rendered output for fixture configs
-docs/adr/  docs/agents/  docs/design/  docs/windows-behaviour.md
+docs/adr/  docs/agents/  docs/design/  docs/research/  docs/windows-behaviour.md
 samples/                  reference output, hand-written, never executed by tests
 ```
 

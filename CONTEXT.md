@@ -124,6 +124,22 @@ _Avoid_: missing, disconnected, offline
 The physical input a monitor is showing, such as DisplayPort or HDMI 1.
 _Avoid_: input, source, channel
 
+**Capabilities**:
+What a monitor declares it can do: the input sources it accepts, whether it can be
+woken, and the modes Windows lists for it. Read on first sight and on re-check, never
+by the probe.
+_Avoid_: analysis, features, scan, supported inputs (on its own)
+
+**Asleep**:
+A monitor reporting standby or off over DDC-CI while Windows still counts it Active.
+A monitor that does not answer is neither awake nor asleep.
+_Avoid_: sleeping, power saving, standby (as the user-facing word), dark
+
+**Re-check**:
+Reading capabilities again for every Active monitor, started from the Monitors
+screen.
+_Avoid_: refresh (that is the probe), rescan, re-read, analyse
+
 ### Side effects
 
 **Fingerprint**:

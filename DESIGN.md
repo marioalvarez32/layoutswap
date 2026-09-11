@@ -3,7 +3,9 @@
 The standing record of UI decisions. Claude Design reads the repo's tokens and this
 file before drawing; it never writes a record of its own, so every design session
 ends by adding a row to the Decisions table below. The brief for the current design
-effort is `docs/design/v1-brief.md`; the turn-two brief is `docs/design/v1-turn-2.md`. Canvases (`.dc.html` working files) live under
+effort is `docs/design/v1-brief.md`; the turn-two brief is `docs/design/v1-turn-2.md`
+and the turn-three brief (capabilities and sleeping monitors, ticket #31) is
+`docs/design/v1-turn-3.md`. Canvases (`.dc.html` working files) live under
 `docs/design/canvases/`.
 
 ## Product stance
@@ -33,8 +35,9 @@ and closes it. Nothing stays resident. Every screen is a workshop, not a dashboa
    On/Off; ordered steps before and after the apply; audio endpoints; RDP refresh;
    shortcut; fallback on failed apply; collapsed Advanced timing.
 4. **Monitors.** Live inventory with alias, reported name, GPU, connector, position,
-   size, state, DDC-CI support and current input source, and an analysis the user
-   starts that shows what each monitor can do (accepted inputs, wake support, modes).
+   size, state (with asleep), DDC-CI support and current input source, and each
+   monitor's capabilities (accepted inputs, wake support, modes), read on first
+   sight and on Re-check.
 5. **Audio.** Endpoints with state and which layouts touch them.
 6. **RDP.** Connection files, fingerprint capture, dry run, scheduled task.
 7. **Settings.** Default shortcut location, log viewer, config export and import.
@@ -126,6 +129,6 @@ Numbered so a design session can claim one and answer it in the Decisions table.
 - **Q12** Switch progress "needs you" and "done" are drawn as cards; the build follows the running variant's full-screen layout, and the cards should be redrawn to match.
 - **Q13** Changes found while using the app for real go here, one line each, until a design session picks them up.
   - A sleeping monitor swallows a send (docs/windows-behaviour.md): the probe could read the DDC-CI power mode so the detail's monitor row can say "Available, asleep" beside Active, Available and Absent; a send step could read it too, write power mode 1 where the monitor declares it writable, and otherwise show a needs-you band "Wake <alias>: press a button on it, then the switch goes on".
-  - Monitor capabilities (2026-09-11): a deliberate, user-started analysis of what each monitor can do, read once from its DDC-CI capabilities string (which input codes it accepts, whether power mode is writable so the app can wake it, whether it answers at all) plus the modes Windows lists for it, and shown on the Monitors screen per monitor; the probe stays fast and never reads capabilities on its own (about four seconds per panel, docs/windows-behaviour.md). The step editor and the sleep handling above would read from this instead of guessing.
+  - Monitor capabilities (2026-09-11): what each monitor declares it can do, read from its DDC-CI capabilities string on first sight and on Re-check (which input codes it accepts, whether power mode is writable so the app can wake it, whether it answers at all) plus the modes Windows lists for it, and shown on the Monitors screen per monitor; the probe stays fast and never reads capabilities itself (about four seconds per panel, docs/windows-behaviour.md). The step editor and the sleep handling above would read from this instead of guessing.
   - Refresh rate per layout: investigate listing the rates each monitor offers and letting a layout pick one for each on monitor, applied with the arrangement; today a layout keeps the rate it was captured at and verify only warns on a mismatch. Tracked as a research issue.
   - Settings gains a "Save diagnostics" action under Log, for failures that did not surface as a switch result (the switch result has it since 2026-09-10).

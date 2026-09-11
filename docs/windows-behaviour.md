@@ -52,10 +52,10 @@ most timing defaults trace back to one of these.
   VCP code 0xD6 (power mode) reads 1 awake, 2 standby, 4 off, 5 power off, and a read
   takes well under a second like any VCP read. Which values a monitor accepts as a
   write is in its capabilities string: on the reference machine the Acer declares
-  D6(01 02 04 05), so writing 1 should wake it; the two MSI panels answer 1 but declare
-  only D6(05), so they can be switched off this way but not woken; the built-in panel
-  answers no VCP read at all. The ultrawide was not active during the read, so its
-  power-mode support is unverified. Windows has no per-monitor sleep flag: display
+  D6(01 02 04 05), so writing 1 should wake it; the ultrawide declares D6(01 05), so it
+  can be woken and powered off but not put in standby; the two MSI panels answer 1 but
+  declare only D6(05), so they can be switched off this way but not woken; the built-in
+  panel answers no VCP read at all. Windows has no per-monitor sleep flag: display
   config keeps a sleeping monitor Active and Available.
 - **Windows can wake only the displays it turned off itself.** `SetThreadExecutionState`
   with `ES_DISPLAY_REQUIRED`, or a zero-distance `SendInput` mouse move, brings back
@@ -70,6 +70,14 @@ most timing defaults trace back to one of these.
   display-config path target carries the refresh rate the arrangement applies. Not
   used yet: layouts apply whatever rate was captured, and verify only warns on a
   difference.
+- **A refresh rate is asked for by invalidating the target mode index.** With the
+  path target's `modeInfoIdx` kept, `SetDisplayConfig` ignores the path's
+  `refreshRate`; with it set to invalid, the rate on the path is what is asked for,
+  and it must be the monitor's exact rational (60000/1001 validates where 59/1 does
+  not; the integer the mode list shows is a rounded label). `SDC_ALLOW_CHANGES`
+  makes validate accept any rate at all, even 999 Hz, so a rate is validated and
+  applied without it. Validate-only findings, 2026-09-11; see
+  `docs/research/refresh-rate.md`.
 - **Windows rejects an arrangement with a floating monitor.** Every active monitor
   must share an edge with the group that contains the primary.
 - **`SDC_TOPOLOGY_EXTEND` ignores any paths and modes handed to it.** `SetDisplayConfig`

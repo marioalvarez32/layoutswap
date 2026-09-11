@@ -74,7 +74,9 @@ pub fn run() {
             commands::cancel_switch,
             commands::open_log,
             commands::open_display_settings,
-            commands::save_diagnostics
+            commands::save_diagnostics,
+            commands::export_config,
+            commands::import_config
         ])
         .run(tauri::generate_context!())
         .expect("layoutswap failed to start");

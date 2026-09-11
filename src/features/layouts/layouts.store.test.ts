@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, scriptStates, switchLayout } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -162,6 +162,60 @@ describe('layouts store: switch', () => {
     vi.mocked(openLog).mockRejectedValueOnce({ message: 'Switch to the layout once, then open its log: C:/x/switch.log is not on disk yet.', logPath: null });
     await store.resultAction('openLog');
     expect(store.switchRun!.error).toContain('Switch to the layout once');
+  });
+
+  it('exports and says where the file went, or nothing when cancelled', async () => {
+    const store = useLayoutsStore();
+    await store.exportConfig();
+    expect(exportConfig).toHaveBeenCalledTimes(1);
+    expect(store.transferNote).toBe('Exported to C:/Users/x/Desktop/layoutswap-config-2026-09-10.json');
+    expect(store.transferError).toBeNull();
+    vi.mocked(exportConfig).mockResolvedValueOnce(null);
+    await store.exportConfig();
+    expect(store.transferNote).toBeNull();
+    expect(store.transferBusy).toBe(false);
+  });
+
+  it('imports, replaces the layouts, selects the first and reloads the script states', async () => {
+    const store = useLayoutsStore();
+    store.selectedId = 'layout-film';
+    vi.mocked(importConfig).mockResolvedValueOnce({
+      schemaVersion: 1,
+      window: { width: 1280, height: 860 },
+      aliases: { 'path-acer': 'Side' },
+      layouts: [{ ...layoutFixture(), id: 'layout-new', name: 'New' }],
+    });
+    vi.mocked(scriptStates).mockResolvedValueOnce([{ layoutId: 'layout-new', state: 'current', path: 'C:/x/switch.ps1' }]);
+    await store.importConfig();
+    expect(store.layouts.map((l) => l.id)).toEqual(['layout-new']);
+    expect(store.aliases).toEqual({ 'path-acer': 'Side' });
+    expect(store.selectedId).toBe('layout-new');
+    expect(store.scriptStatuses[0]?.layoutId).toBe('layout-new');
+    expect(store.transferNote).toBe('Imported 1 layout');
+  });
+
+  it('keeps a refused import where the footer shows it and leaves the layouts alone', async () => {
+    const store = useLayoutsStore();
+    vi.mocked(importConfig).mockRejectedValueOnce({ message: 'Pick another file to import: C:/x/newer.json was refused, it uses schema version 99 and this version of layoutswap reads up to 1.', logPath: null });
+    await store.importConfig();
+    expect(store.transferError).toContain('schema version 99');
+    expect(store.layouts).toHaveLength(2);
+
+    vi.mocked(importConfig).mockResolvedValueOnce(null);
+    await store.importConfig();
+    expect(store.layouts).toHaveLength(2);
+    expect(store.transferNote).toBeNull();
+  });
+
+  it('refuses to import while a switch runs', async () => {
+    const store = useLayoutsStore();
+    const script = scriptedSwitch();
+    void store.switchTo('layout-desk');
+    await flushPromises();
+    script.emit(STARTED);
+    await store.importConfig();
+    expect(importConfig).not.toHaveBeenCalled();
+    expect(store.transferError).toBe('Wait for the switch to Desk to finish, then import again.');
   });
 
   it('does nothing when there is no run to cancel', async () => {

@@ -40,28 +40,33 @@ impl ConfigStore {
     /// Defaults when the file does not exist; otherwise the file, migrated to the current
     /// schema version.
     pub fn load(&self) -> Result<Config, AppError> {
-        let text = match fs::read_to_string(&self.path) {
-            Ok(text) => text,
-            Err(source) if source.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Config::default());
+        match self.read(&self.path) {
+            Err(AppError::ConfigRead { source, .. })
+                if source.kind() == std::io::ErrorKind::NotFound =>
+            {
+                Ok(Config::default())
             }
-            Err(source) => {
-                return Err(AppError::ConfigRead {
-                    path: self.path.clone(),
-                    source,
-                })
-            }
-        };
+            other => other,
+        }
+    }
+
+    /// Reads a config from any file, through the same parsing and migrations as `load`,
+    /// without touching this store's own file. Import goes through here.
+    pub fn read(&self, path: &Path) -> Result<Config, AppError> {
+        let text = fs::read_to_string(path).map_err(|source| AppError::ConfigRead {
+            path: path.to_path_buf(),
+            source,
+        })?;
         // An editor that saves UTF-8 with a byte-order mark must not break the file.
         let text = text.strip_prefix('\u{feff}').unwrap_or(&text);
         let value: Value =
             serde_json::from_str(text).map_err(|source| AppError::ConfigInvalid {
-                path: self.path.clone(),
+                path: path.to_path_buf(),
                 source,
             })?;
-        let migrated = migrate(value, &self.path)?;
+        let migrated = migrate(value, path)?;
         serde_json::from_value(migrated).map_err(|source| AppError::ConfigInvalid {
-            path: self.path.clone(),
+            path: path.to_path_buf(),
             source,
         })
     }

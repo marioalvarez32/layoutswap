@@ -22,12 +22,27 @@ describe('Sidebar', () => {
       expect(wrapper.findAll('.row')).toHaveLength(0);
     });
 
-    it('pins the four inventory items, visible but disabled', () => {
+    it('pins the three inventory items disabled, then Export config and Import config enabled', async () => {
       const pinned = wrapper.findAll('.pinned-item');
-      expect(pinned.map((b) => b.text())).toEqual(['Monitors', 'Audio', 'Remote Desktop', 'Settings']);
-      for (const item of pinned) {
+      expect(pinned.map((b) => b.text())).toEqual(['Monitors', 'Audio', 'Remote Desktop', 'Export config', 'Import config']);
+      for (const item of pinned.slice(0, 3)) {
         expect(item.attributes('disabled')).toBeDefined();
       }
+      expect(wrapper.find('.export').attributes('disabled')).toBeUndefined();
+      expect(wrapper.find('.import').attributes('disabled')).toBeUndefined();
+      await wrapper.find('.export').trigger('click');
+      await wrapper.find('.import').trigger('click');
+      expect(wrapper.emitted('export')).toHaveLength(1);
+      expect(wrapper.emitted('import')).toHaveLength(1);
+    });
+
+    it('shows what the last transfer did, or why it was refused, under the items', () => {
+      const noted = mount(Sidebar, { props: { layouts: [], selectedId: null, lastProbe: null, transferNote: 'Imported 2 layouts' } });
+      expect(noted.find('.transfer-line').text()).toBe('Imported 2 layouts');
+      const refused = mount(Sidebar, { props: { layouts: [], selectedId: null, lastProbe: null, transferNote: 'Imported 2 layouts', transferError: 'Pick another file to import: x was refused, it is not a layoutswap config.', transferBusy: true } });
+      expect(refused.find('.transfer-line').text()).toContain('Pick another file');
+      expect(refused.find('.transfer-line').classes()).toContain('crit');
+      expect(refused.find('.export').attributes('disabled')).toBeDefined();
     });
 
     it('says the probe has not run yet', () => {

@@ -2,21 +2,33 @@
 import { formatOnOffCount, type LayoutListItem } from '@/domain/layouts';
 import Button from '@/ui/Button.vue';
 
-defineProps<{
+withDefaults(defineProps<{
   layouts: LayoutListItem[];
   selectedId: string | null;
   /** When the probe last ran, already formatted, or null when it has not run yet. */
   lastProbe: string | null;
-}>();
+  /** Export or import is in flight, so both items wait. */
+  transferBusy?: boolean;
+  /** What the last export or import did, or why it was refused. */
+  transferNote?: string | null;
+  transferError?: string | null;
+}>(), {
+  transferBusy: false,
+  transferNote: null,
+  transferError: null,
+});
 
 defineEmits<{
   save: [];
   select: [id: string];
+  export: [];
+  import: [];
 }>();
 
 // The inventory screens are pinned so the navigation shape is final; their screens
-// come in later slices, so the items are visible but disabled.
-const pinned = ['Monitors', 'Audio', 'Remote Desktop', 'Settings'] as const;
+// come in later slices, so the items are visible but disabled. Export config and
+// Import config stand where Settings will go.
+const pinned = ['Monitors', 'Audio', 'Remote Desktop'] as const;
 </script>
 
 <template>
@@ -53,7 +65,33 @@ const pinned = ['Monitors', 'Audio', 'Remote Desktop', 'Settings'] as const;
             {{ item }}
           </button>
         </li>
+        <li>
+          <button
+            type="button"
+            class="pinned-item transfer export"
+            :disabled="transferBusy"
+            @click="$emit('export')"
+          >
+            Export config
+          </button>
+        </li>
+        <li>
+          <button
+            type="button"
+            class="pinned-item transfer import"
+            :disabled="transferBusy"
+            @click="$emit('import')"
+          >
+            Import config
+          </button>
+        </li>
       </ul>
+      <p v-if="transferError" class="transfer-line crit" role="alert">
+        {{ transferError }}
+      </p>
+      <p v-else-if="transferNote" class="transfer-line">
+        {{ transferNote }}
+      </p>
       <p class="probe">
         Last probe<br>{{ lastProbe ?? 'not run yet' }}
       </p>
@@ -196,6 +234,23 @@ ul {
   color: var(--ink-3);
   cursor: default;
   opacity: 0.6;
+}
+
+.pinned-item.transfer {
+  color: var(--ink);
+}
+
+.transfer-line {
+  margin: 0;
+  padding: 0 var(--space-3);
+  font-size: var(--text-xs);
+  line-height: var(--leading);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.transfer-line.crit {
+  color: var(--crit);
 }
 
 .probe {

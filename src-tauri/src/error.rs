@@ -130,6 +130,16 @@ pub enum AppError {
         source: std::io::Error,
     },
 
+    #[error("Pick another place to save the config: could not write {path} ({source}).")]
+    ExportWrite {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
+    #[error("Pick another file to import: {path} was refused, {problem}.")]
+    ImportRefused { path: PathBuf, problem: String },
+
     #[error("Wait for the switch to {layout} to finish, then try again.")]
     SwitchRunning { layout: String },
 
@@ -150,6 +160,26 @@ pub enum AppError {
         "Open layoutswap again and try once more: something inside the app failed ({detail})."
     )]
     Internal { detail: String },
+}
+
+impl AppError {
+    /// Why a config file cannot be imported, as a clause after the file name.
+    pub fn import_problem(&self) -> String {
+        match self {
+            AppError::UnknownSchemaVersion {
+                found, supported, ..
+            } => format!(
+                "it uses schema version {found} and this version of layoutswap reads up to {supported}"
+            ),
+            AppError::ConfigInvalid { source, .. } => {
+                format!("the file is not a layoutswap config: {source}")
+            }
+            AppError::ConfigRead { source, .. } => {
+                format!("the file could not be read: {source}")
+            }
+            other => other.to_string(),
+        }
+    }
 }
 
 /// What the webview receives when a command fails.

@@ -11,7 +11,10 @@ import { useWindowSize } from '@/features/settings/useWindowSize';
 import { formatProbeTime } from '@/domain/time';
 
 const layoutsStore = useLayoutsStore();
-const { listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun, resultActionBusy } = storeToRefs(layoutsStore);
+const {
+  listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun, resultActionBusy,
+  transferBusy, transferNote, transferError,
+} = storeToRefs(layoutsStore);
 
 const { error: windowSizeError } = useWindowSize();
 
@@ -35,6 +38,11 @@ function onSelect(id: string) {
   savePageOpen.value = false;
 }
 
+async function onImport() {
+  await layoutsStore.importConfig();
+  savePageOpen.value = false;
+}
+
 onMounted(async () => {
   await layoutsStore.load();
   await layoutsStore.probe();
@@ -47,8 +55,13 @@ onMounted(async () => {
       :layouts="listItems"
       :selected-id="savePageOpen ? null : selectedId"
       :last-probe="lastProbe"
+      :transfer-busy="transferBusy"
+      :transfer-note="transferNote"
+      :transfer-error="transferError"
       @save="openSave"
       @select="onSelect"
+      @export="layoutsStore.exportConfig"
+      @import="onImport"
     />
     <main class="content">
       <p v-if="banner" class="alert" role="alert">

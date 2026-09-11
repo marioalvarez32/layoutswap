@@ -26,3 +26,14 @@ pub fn ask_where_to_save(
     }
     dialog.save_file()
 }
+
+/// Asks which file of the given kind to open. `None` when the user cancels.
+pub fn ask_which_file_to_open(title: &str, kind: &str, extension: &str) -> Option<PathBuf> {
+    let mut dialog = rfd::FileDialog::new()
+        .set_title(title)
+        .add_filter(kind, &[extension]);
+    if let Some(desktop) = desktop_dir() {
+        dialog = dialog.set_directory(desktop);
+    }
+    dialog.pick_file()
+}

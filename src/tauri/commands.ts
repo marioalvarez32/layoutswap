@@ -74,6 +74,19 @@ export function saveDiagnostics(layoutId: string): Promise<string | null> {
   return invoke<string | null>('save_diagnostics', { layoutId });
 }
 
+/** Asks where to save the config and copies it there. Null when the user cancelled. */
+export function exportConfig(): Promise<string | null> {
+  return invoke<string | null>('export_config');
+}
+
+/**
+ * Asks which file to import and replaces the config with it, regenerating every
+ * script. Resolves with the new config, or null when the user cancelled.
+ */
+export function importConfig(): Promise<Config | null> {
+  return invoke<Config | null>('import_config');
+}
+
 /** The event name `commands::SWITCH_EVENT` emits on. */
 const SWITCH_EVENT = 'switch-event';
 

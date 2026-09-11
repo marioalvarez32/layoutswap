@@ -35,5 +35,7 @@ export function commandsMock(): typeof commands {
     openLog: vi.fn<typeof commands.openLog>().mockResolvedValue(undefined),
     openDisplaySettings: vi.fn<typeof commands.openDisplaySettings>().mockResolvedValue(undefined),
     saveDiagnostics: vi.fn<typeof commands.saveDiagnostics>().mockResolvedValue('C:/Users/x/Desktop/layoutswap-diagnostics-desk-20260910-183012.zip'),
+    exportConfig: vi.fn<typeof commands.exportConfig>().mockResolvedValue('C:/Users/x/Desktop/layoutswap-config-2026-09-10.json'),
+    importConfig: vi.fn<typeof commands.importConfig>().mockResolvedValue({ ...defaultConfig(), layouts: [layoutFixture()] }),
   };
 }

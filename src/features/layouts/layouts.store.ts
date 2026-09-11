@@ -7,6 +7,8 @@ import { appendLog, applyProgress, newSwitchRun, type SwitchRun } from '@/domain
 import {
   cancelSwitch as cancelSwitchScript,
   captureLayout,
+  exportConfig as exportConfigFile,
+  importConfig as importConfigFile,
   loadConfig,
   onSwitchEvent,
   openDisplaySettings as openDisplaySettingsPage,
@@ -36,6 +38,11 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const switchRun = ref<SwitchRun | null>(null);
   /** An action on the result screen is in flight, such as the save dialog. */
   const resultActionBusy = ref(false);
+  /** Export or import is in flight, dialog included. */
+  const transferBusy = ref(false);
+  /** What the last export or import did, for the sidebar footer. */
+  const transferNote = ref<string | null>(null);
+  const transferError = ref<string | null>(null);
 
   const isEmpty = computed(() => layouts.value.length === 0);
   const listItems = computed(() => layouts.value.map(toListItem));
@@ -196,6 +203,53 @@ export const useLayoutsStore = defineStore('layouts', () => {
     }
   }
 
+  /** Export: the config as one file, wherever the user says. */
+  async function exportConfig() {
+    await transfer(async () => {
+      const path = await exportConfigFile();
+      transferNote.value = path === null ? null : `Exported to ${path}`;
+    });
+  }
+
+  /**
+   * Import: replaces the layouts and aliases with the chosen file's, selects the first
+   * layout, and reloads the script states. Refused while a switch runs.
+   */
+  async function importConfig() {
+    if (switching.value) {
+      transferError.value = `Wait for the switch to ${switching.value.layoutName} to finish, then import again.`;
+      return;
+    }
+    await transfer(async () => {
+      const config = await importConfigFile();
+      if (config === null) {
+        return;
+      }
+      layouts.value = config.layouts;
+      aliases.value = config.aliases;
+      selectedId.value = config.layouts[0]?.id ?? null;
+      switchRun.value = null;
+      await refreshScriptStates();
+      transferNote.value = `Imported ${config.layouts.length} ${config.layouts.length === 1 ? 'layout' : 'layouts'}`;
+    });
+  }
+
+  async function transfer(action: () => Promise<void>) {
+    if (transferBusy.value) {
+      return;
+    }
+    transferBusy.value = true;
+    transferError.value = null;
+    transferNote.value = null;
+    try {
+      await action();
+    } catch (cause) {
+      transferError.value = errorMessage(cause);
+    } finally {
+      transferBusy.value = false;
+    }
+  }
+
   /** Back to the layout: the finished run leaves the content area. */
   function dismissSwitch() {
     if (switchRun.value?.result !== null) {
@@ -221,6 +275,9 @@ export const useLayoutsStore = defineStore('layouts', () => {
     probeError,
     switchRun,
     resultActionBusy,
+    transferBusy,
+    transferNote,
+    transferError,
     isEmpty,
     listItems,
     selected,
@@ -232,6 +289,8 @@ export const useLayoutsStore = defineStore('layouts', () => {
     switchTo,
     cancelSwitch,
     resultAction,
+    exportConfig,
+    importConfig,
     dismissSwitch,
     select,
   };

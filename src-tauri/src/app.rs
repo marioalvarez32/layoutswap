@@ -6,6 +6,7 @@
 mod diagnostics;
 mod log;
 mod switch;
+mod transfer;
 
 pub use switch::{FailureExplanation, SwitchEvent, SwitchResult};
 

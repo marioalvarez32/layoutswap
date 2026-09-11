@@ -137,6 +137,21 @@ layout, so one switch runs at a time whether it started from the app or from a
 shortcut. The script removes it on exit; the app removes it after a cancel.
 _Avoid_: mutex, semaphore, guard
 
+**Export**:
+Writing the whole config as one file the user chooses, to back it up or carry it to
+another machine. The file is the config file as-is.
+_Avoid_: backup, save as, dump
+
+**Import**:
+Replacing the whole config with a chosen export and regenerating every layout's
+script for this machine; the layouts it replaces lose their folders. A file this
+version cannot read is refused untouched.
+_Avoid_: restore, load, open
+
+**Transfer**:
+Export and import together: the two actions that move the whole config as one file.
+_Avoid_: sync, migrate (that is a schema step), backup and restore
+
 **Diagnostics**:
 A single file the app writes on request holding everything needed to debug a
 switch: the app log, the layout's switch log, the last probe result, the generated

@@ -29,7 +29,7 @@ src-tauri/
     commands/             thin: deserialize args, call one function on app, map AppError
     app.rs                composition root: config store, script runner, the latest probe and the running
                           switch under one app root; orchestration that spans modules (capture is probe
-                          plus store); app/switch.rs, app/log.rs and app/diagnostics.rs split it by concern
+                          plus store); app/switch.rs, app/log.rs, app/diagnostics.rs and app/transfer.rs split it by concern
     dialog.rs             the one place a native file dialog is shown; callers take the chosen path
     config/               typed Config, JSON under %LOCALAPPDATA%\layoutswap, schema version and migrations
                           (nothing roams: layouts hold device paths and GPU identities, so the whole

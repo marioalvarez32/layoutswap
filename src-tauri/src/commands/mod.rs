@@ -103,6 +103,31 @@ pub fn open_display_settings(state: State<'_, AppState>) -> Result<(), AppError>
     state.app.open_display_settings()
 }
 
+/// Asks where to save the config, then copies it there. Resolves with the path, or
+/// null when the user cancelled the dialog.
+#[tauri::command]
+pub async fn export_config(state: State<'_, AppState>) -> Result<Option<String>, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || {
+        app.export_config(|file_name| {
+            crate::dialog::ask_where_to_save("Export config", file_name, "layoutswap config", "json")
+        })
+        .map(|path| path.map(|p| p.display().to_string()))
+    })
+    .await
+}
+
+/// Asks which file to import, then replaces the config with it. Resolves with the new
+/// config, or null when the user cancelled the dialog.
+#[tauri::command]
+pub async fn import_config(state: State<'_, AppState>) -> Result<Option<Config>, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || {
+        app.import_config(|| crate::dialog::ask_which_file_to_open("Import config", "layoutswap config", "json"))
+    })
+    .await
+}
+
 /// Asks where to save, then writes the zip there. Resolves with the path, or null when
 /// the user cancelled the dialog.
 #[tauri::command]

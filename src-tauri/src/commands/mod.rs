@@ -12,7 +12,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 use crate::app::{App, SwitchEvent, SwitchResult};
-use crate::config::layouts::{CaptureOutcome, Layout, ScriptStatus};
+use crate::config::layouts::{CaptureOutcome, Layout, LayoutEdits, ScriptStatus};
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
 use crate::hardware::Inventory;
@@ -46,6 +46,16 @@ pub async fn capture_layout(
 ) -> Result<CaptureOutcome, AppError> {
     let app = Arc::clone(&state.app);
     blocking(move || app.capture(&name, replace_id.as_deref())).await
+}
+
+#[tauri::command]
+pub async fn save_layout(
+    state: State<'_, AppState>,
+    layout_id: String,
+    edits: LayoutEdits,
+) -> Result<Layout, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || app.save_layout(&layout_id, edits)).await
 }
 
 #[tauri::command]

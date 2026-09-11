@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, scriptStates, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -216,6 +216,50 @@ describe('layouts store: switch', () => {
     await store.importConfig();
     expect(importConfig).not.toHaveBeenCalled();
     expect(store.transferError).toBe('Wait for the switch to Desk to finish, then import again.');
+  });
+
+  it('holds one draft, knows when it is dirty, saves it and drops a draft equal to the layout', async () => {
+    const store = useLayoutsStore();
+    expect(store.dirty).toBe(false);
+    expect(store.editsFor('layout-desk')).toEqual({ steps: [], dropWaitSeconds: 5, availableWaitSeconds: 120, onApplyFailure: 'stop' });
+
+    const step = { id: 's1', side: 'before' as const, kind: 'wait' as const, seconds: 3 };
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), steps: [step] });
+    expect(store.dirty).toBe(true);
+    expect(store.dirtyLayoutName).toBe('Desk');
+    expect(store.isDraftDirty('layout-film')).toBe(false);
+
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), steps: [] });
+    expect(store.draft).toBeNull();
+
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), steps: [step] });
+    vi.mocked(scriptStates).mockResolvedValueOnce([{ layoutId: 'layout-desk', state: 'current', path: 'C:/x/switch.ps1' }]);
+    await store.saveDraft();
+    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ steps: [step] }));
+    expect(store.layouts[0]?.steps).toEqual([step]);
+    expect(store.draft).toBeNull();
+    expect(store.scriptStatuses[0]?.state).toBe('current');
+
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), dropWaitSeconds: 9 });
+    store.discardDraft();
+    expect(store.dirty).toBe(false);
+  });
+
+  it('drops the draft when the layouts are reloaded, imported or re-captured', async () => {
+    const store = useLayoutsStore();
+    const dirty = () => store.edit('layout-desk', { ...store.editsFor('layout-desk'), dropWaitSeconds: 9 });
+    dirty();
+    await store.load();
+    expect(store.dirty).toBe(false);
+
+    store.layouts = [layoutFixture()];
+    dirty();
+    await store.importConfig();
+    expect(store.dirty).toBe(false);
+
+    dirty();
+    await store.capture('Desk', 'layout-desk');
+    expect(store.dirty).toBe(false);
   });
 
   it('does nothing when there is no run to cancel', async () => {

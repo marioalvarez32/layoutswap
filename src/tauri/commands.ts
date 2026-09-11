@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { CaptureOutcome, Config, Inventory, Layout, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
+import type { CaptureOutcome, Config, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
 
 export function loadConfig(): Promise<Config> {
   return invoke<Config>('load_config');
@@ -26,6 +26,14 @@ export function probe(): Promise<Inventory> {
 /** Saves the latest probe as a layout; with `replaceId`, re-captures that layout. */
 export function captureLayout(name: string, replaceId: string | null): Promise<CaptureOutcome> {
   return invoke<CaptureOutcome>('capture_layout', { name, replaceId });
+}
+
+/**
+ * Saves the editor's steps, timings and fallback onto a layout and regenerates its
+ * script. Returns the stored layout. Refused when an edit breaks its bounds.
+ */
+export function saveLayout(layoutId: string, edits: LayoutEdits): Promise<Layout> {
+  return invoke<Layout>('save_layout', { layoutId, edits });
 }
 
 /** Every layout's generated-script state, read from the config and the disk. */

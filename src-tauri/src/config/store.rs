@@ -120,11 +120,36 @@ fn migrate(mut value: Value, path: &Path) -> Result<Value, AppError> {
     if found == 0 {
         return Err(invalid("schemaVersion 0 was never written by layoutswap"));
     }
-    // Version 1 is the first shape; migration steps for later versions go here.
+    if found < 2 {
+        migrate_1_to_2(&mut value);
+    }
     if let Some(object) = value.as_object_mut() {
         object.insert("schemaVersion".into(), Value::from(SCHEMA_VERSION));
     }
     Ok(value)
+}
+
+/// Version 2 gave every layout a timeline: empty steps, the default timings, the
+/// stop fallback, and an updated-at stamp equal to its capture.
+fn migrate_1_to_2(value: &mut Value) {
+    use super::layouts::{DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS};
+    let Some(layouts) = value.get_mut("layouts").and_then(Value::as_array_mut) else {
+        return;
+    };
+    for layout in layouts.iter_mut().filter_map(Value::as_object_mut) {
+        let captured_at = layout.get("capturedAt").cloned().unwrap_or(Value::Null);
+        layout.entry("steps").or_insert_with(|| Value::Array(vec![]));
+        layout
+            .entry("dropWaitSeconds")
+            .or_insert_with(|| Value::from(DEFAULT_DROP_WAIT_SECONDS));
+        layout
+            .entry("availableWaitSeconds")
+            .or_insert_with(|| Value::from(DEFAULT_AVAILABLE_WAIT_SECONDS));
+        layout
+            .entry("onApplyFailure")
+            .or_insert_with(|| Value::from("stop"));
+        layout.entry("updatedAt").or_insert(captured_at);
+    }
 }
 
 #[cfg(test)]
@@ -170,6 +195,35 @@ mod tests {
         store.save(&Config::default()).unwrap();
         assert!(store.path().exists());
         assert!(!store.path().with_extension("json.tmp").exists());
+    }
+
+    #[test]
+    fn a_version_1_config_gains_a_timeline_per_layout() {
+        let (_dir, store) = store();
+        fs::create_dir_all(store.path().parent().unwrap()).unwrap();
+        let five = include_str!("../hardware/fixtures/five-monitors.json");
+        let inventory = crate::hardware::parse(five).unwrap();
+        let v1 = serde_json::json!({
+            "schemaVersion": 1,
+            "window": { "width": 1280, "height": 860 },
+            "aliases": {},
+            "layouts": [{
+                "id": "abc", "name": "Desk", "folder": "desk",
+                "capturedAt": "2026-09-09T14:33:00-05:00",
+                "arrangement": inventory.arrangement,
+                "summary": crate::config::layouts::summarise(&inventory),
+                "script": null
+            }]
+        });
+        fs::write(store.path(), v1.to_string()).unwrap();
+        let config = store.load().unwrap();
+        assert_eq!(config.schema_version, 2);
+        let layout = &config.layouts[0];
+        assert!(layout.steps.is_empty());
+        assert_eq!(layout.drop_wait_seconds, 5);
+        assert_eq!(layout.available_wait_seconds, 120);
+        assert_eq!(layout.on_apply_failure, crate::config::layouts::ApplyFailure::Stop);
+        assert_eq!(layout.updated_at, layout.captured_at);
     }
 
     #[test]
@@ -263,7 +317,7 @@ mod tests {
         let (_dir, store) = store();
         store.save(&Config::default()).unwrap();
         let text = fs::read_to_string(store.path()).unwrap();
-        assert!(text.contains(r#""schemaVersion": 1"#), "{text}");
+        assert!(text.contains(&format!(r#""schemaVersion": {SCHEMA_VERSION}"#)), "{text}");
         assert!(text.contains(r#""window""#), "{text}");
         assert!(text.contains(r#""aliases""#), "{text}");
     }

@@ -44,6 +44,16 @@ describe('useSwitchLayout', () => {
     expect(result.blockedBy.value).toBeNull();
   });
 
+  it('is blocked while the layout has unsaved changes', async () => {
+    const store = useLayoutsStore();
+    store.edit('layout-desk', { ...store.editsFor('layout-desk'), dropWaitSeconds: 9 });
+    const { result } = withSetup(() => useSwitchLayout('layout-desk'));
+    expect(result.blockedBy.value).toBe('Save the layout first.');
+    await result.start();
+    expect(switchLayout).not.toHaveBeenCalled();
+    expect(withSetup(() => useSwitchLayout('layout-film')).result.blockedBy.value).toBeNull();
+  });
+
   it('keeps a refusal where the button is', async () => {
     vi.mocked(switchLayout).mockRejectedValueOnce({ message: 'Wait for the switch to Film to finish, then try again.', logPath: null });
     const { result } = withSetup(() => useSwitchLayout('layout-desk'));

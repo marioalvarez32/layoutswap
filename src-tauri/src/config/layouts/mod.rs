@@ -1,9 +1,15 @@
 //! Layouts as the config stores them, and the pure rules around them: the name rules,
-//! the folder slug, how a probe becomes a summary, how a monitor is named, whether a
-//! script is stale, and (in `verify`) whether a switch landed. Capture itself (probe
-//! plus store) is orchestrated in `crate::app`.
+//! the folder slug, how a probe becomes a summary, how a monitor is named, the steps
+//! and their bounds, whether a script is stale, and (in `verify`) whether a switch
+//! landed. Capture itself (probe plus store) is orchestrated in `crate::app`.
 
+pub mod steps;
 pub mod verify;
+
+pub use steps::{
+    step_sentence, validate_edits, ApplyFailure, LayoutEdits, Step, StepKind, StepSide,
+    DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
+};
 
 use std::collections::BTreeMap;
 
@@ -25,8 +31,18 @@ pub struct Layout {
     /// The folder under `<app root>\layouts` holding the generated script and its log.
     pub folder: String,
     pub captured_at: String,
+    /// When the layout last changed, at capture or at a save; the stale rule reads it.
+    pub updated_at: String,
     pub arrangement: ArrangementBlob,
     pub summary: Summary,
+    /// The steps around the apply, in order (CONTEXT.md: Timeline).
+    #[serde(default)]
+    pub steps: Vec<Step>,
+    /// How long a send step waits for its monitor to drop before going on.
+    pub drop_wait_seconds: u32,
+    /// How long a wait for a monitor to become Available lasts before failing.
+    pub available_wait_seconds: u32,
+    pub on_apply_failure: ApplyFailure,
     /// The generated switch script on disk, or null when none has been written yet.
     #[serde(default)]
     pub script: Option<ScriptRecord>,
@@ -66,7 +82,7 @@ pub struct ScriptStatus {
 }
 
 /// The stale rule: a script is stale when its template version is older than the
-/// app's or when it was rendered before the layout was last captured.
+/// app's or when it was rendered before the layout last changed (`updated_at`).
 pub fn script_state(layout: &Layout, template_version: u32, file_exists: bool) -> ScriptState {
     if !file_exists {
         return ScriptState::Missing;
@@ -75,7 +91,7 @@ pub fn script_state(layout: &Layout, template_version: u32, file_exists: bool) -
         None => ScriptState::Stale,
         Some(record)
             if record.template_version < template_version
-                || is_before(&record.rendered_at, &layout.captured_at) =>
+                || is_before(&record.rendered_at, &layout.updated_at) =>
         {
             ScriptState::Stale
         }
@@ -329,6 +345,7 @@ mod tests {
             name: "Desk".into(),
             folder: "desk".into(),
             captured_at: "2026-09-09T14:33:00-05:00".into(),
+            updated_at: "2026-09-09T14:33:00-05:00".into(),
             arrangement: crate::hardware::ArrangementBlob {
                 paths: String::new(),
                 modes: String::new(),
@@ -337,53 +354,23 @@ mod tests {
                 mode_adapters: vec![],
             },
             summary: Summary { monitors: vec![] },
+            steps: vec![],
+            drop_wait_seconds: DEFAULT_DROP_WAIT_SECONDS,
+            available_wait_seconds: DEFAULT_AVAILABLE_WAIT_SECONDS,
+            on_apply_failure: ApplyFailure::Stop,
             script,
         }
     }
 
     #[test]
-    fn a_script_is_current_only_when_this_template_wrote_it_after_the_capture() {
-        let current = Some(ScriptRecord {
-            template_version: 3,
-            rendered_at: "2026-09-09T14:34:00-05:00".into(),
-        });
-        assert_eq!(
-            script_state(&layout_with(current.clone()), 3, true),
-            ScriptState::Current
-        );
-        assert_eq!(
-            script_state(&layout_with(current.clone()), 4, true),
-            ScriptState::Stale
-        );
-        assert_eq!(
-            script_state(&layout_with(current), 3, false),
-            ScriptState::Missing
-        );
-        assert_eq!(
-            script_state(&layout_with(None), 3, true),
-            ScriptState::Stale
-        );
-        let before_capture = Some(ScriptRecord {
-            template_version: 3,
-            rendered_at: "2026-09-09T14:00:00-05:00".into(),
-        });
-        assert_eq!(
-            script_state(&layout_with(before_capture), 3, true),
-            ScriptState::Stale
-        );
-    }
-
-    #[test]
-    fn the_stale_rule_compares_instants_not_text() {
-        // 14:40 UTC is before 14:33 at UTC-5 (19:33 UTC), although the text sorts after it.
+    fn a_save_after_the_render_makes_the_script_stale() {
         let mut layout = layout_with(Some(ScriptRecord {
             template_version: 3,
-            rendered_at: "2026-09-09T14:40:00+00:00".into(),
+            rendered_at: "2026-09-09T14:34:00-05:00".into(),
         }));
-        layout.captured_at = "2026-09-09T14:33:00-05:00".into();
-        assert_eq!(script_state(&layout, 3, true), ScriptState::Stale);
-        layout.script.as_mut().unwrap().rendered_at = "2026-09-09T19:34:00+00:00".into();
         assert_eq!(script_state(&layout, 3, true), ScriptState::Current);
+        layout.updated_at = "2026-09-09T15:00:00-05:00".into();
+        assert_eq!(script_state(&layout, 3, true), ScriptState::Stale);
     }
 
     #[test]

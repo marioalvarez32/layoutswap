@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/domain/errors';
-import type { CaptureOutcome, Inventory, Layout, ScriptStatus, SwitchResult } from '@/domain/generated/types';
+import type { CaptureOutcome, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchResult } from '@/domain/generated/types';
 import { toListItem, upsertLayout } from '@/domain/layouts';
+import { DEFAULT_EDITS, editsOf, isDirty } from '@/domain/steps';
 import { appendLog, applyProgress, newSwitchRun, type SwitchRun } from '@/domain/switch';
 import {
   cancelSwitch as cancelSwitchScript,
@@ -16,6 +17,7 @@ import {
   probe as runProbe,
   regenerateScript as regenerate,
   saveDiagnostics as saveDiagnosticsZip,
+  saveLayout as storeLayoutEdits,
   scriptStates as loadScriptStates,
   switchLayout,
 } from '@/tauri/commands';
@@ -36,6 +38,8 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const probeError = ref<string | null>(null);
   /** The switch on screen: running, or finished until Back dismisses it. */
   const switchRun = ref<SwitchRun | null>(null);
+  /** The layout editor's unsaved edits, for one layout at a time. */
+  const draft = ref<{ layoutId: string; edits: LayoutEdits } | null>(null);
   /** An action on the result screen is in flight, such as the save dialog. */
   const resultActionBusy = ref(false);
   /** Export or import is in flight, dialog included. */
@@ -47,6 +51,11 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const isEmpty = computed(() => layouts.value.length === 0);
   const listItems = computed(() => layouts.value.map(toListItem));
   const selected = computed(() => layouts.value.find((l) => l.id === selectedId.value) ?? null);
+  /** Whether the draft would change its layout: the shell asks before leaving it. */
+  const dirty = computed(() => draft.value !== null && isDraftDirty(draft.value.layoutId));
+  /** The name of the layout with unsaved changes, for the dialog. */
+  const dirtyLayoutName = computed(() => layouts.value.find((l) => l.id === draft.value?.layoutId)?.name ?? '');
+
   /** The layout being switched to while a script runs, so other Switch actions stand down. */
   const switching = computed(() => {
     const run = switchRun.value;
@@ -59,6 +68,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
       const config = await loadConfig();
       layouts.value = config.layouts;
       aliases.value = config.aliases;
+      draft.value = null;
       loadError.value = null;
       if (selected.value === null) {
         selectedId.value = config.layouts[0]?.id ?? null;
@@ -96,9 +106,51 @@ export const useLayoutsStore = defineStore('layouts', () => {
     if (outcome.outcome === 'saved') {
       layouts.value = upsertLayout(layouts.value, outcome.layout);
       selectedId.value = outcome.layout.id;
+      // A re-capture kept the saved steps; a draft on top of the old capture is stale.
+      if (draft.value?.layoutId === outcome.layout.id) {
+        draft.value = null;
+      }
       await refreshScriptStates();
     }
     return outcome;
+  }
+
+  /** The edits the editor shows for a layout: its draft, or the layout as stored. */
+  function editsFor(id: string): LayoutEdits {
+    if (draft.value?.layoutId === id) {
+      return draft.value.edits;
+    }
+    const layout = layouts.value.find((l) => l.id === id);
+    return layout ? editsOf(layout) : DEFAULT_EDITS;
+  }
+
+  function isDraftDirty(id: string): boolean {
+    const layout = layouts.value.find((l) => l.id === id);
+    return draft.value?.layoutId === id && layout !== undefined && isDirty(draft.value.edits, layout);
+  }
+
+  /** Replaces the draft for a layout. A draft equal to the layout is dropped. */
+  function edit(id: string, edits: LayoutEdits) {
+    const layout = layouts.value.find((l) => l.id === id);
+    draft.value = layout && !isDirty(edits, layout) ? null : { layoutId: id, edits };
+  }
+
+  /** Saves the draft onto its layout and regenerates the script. Failures throw; the draft stays. */
+  async function saveDraft() {
+    const current = draft.value;
+    if (!current) {
+      return;
+    }
+    const layout = await storeLayoutEdits(current.layoutId, current.edits);
+    layouts.value = upsertLayout(layouts.value, layout);
+    if (draft.value === current) {
+      draft.value = null;
+    }
+    await refreshScriptStates();
+  }
+
+  function discardDraft() {
+    draft.value = null;
   }
 
   /** Rewrites a layout's script and clears its stale state. Failures throw. */
@@ -229,6 +281,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
       aliases.value = config.aliases;
       selectedId.value = config.layouts[0]?.id ?? null;
       switchRun.value = null;
+      draft.value = null;
       await refreshScriptStates();
       transferNote.value = `Imported ${config.layouts.length} ${config.layouts.length === 1 ? 'layout' : 'layouts'}`;
     });
@@ -274,6 +327,9 @@ export const useLayoutsStore = defineStore('layouts', () => {
     loadError,
     probeError,
     switchRun,
+    draft,
+    dirty,
+    dirtyLayoutName,
     resultActionBusy,
     transferBusy,
     transferNote,
@@ -285,6 +341,11 @@ export const useLayoutsStore = defineStore('layouts', () => {
     load,
     probe,
     capture,
+    editsFor,
+    isDraftDirty,
+    edit,
+    saveDraft,
+    discardDraft,
     regenerateScript,
     switchTo,
     cancelSwitch,

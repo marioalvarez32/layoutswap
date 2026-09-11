@@ -20,7 +20,7 @@ use crate::error::AppError;
 use crate::hardware::MonitorState;
 use crate::script::lock::{self, LOCK_FILE_NAME};
 use crate::script::progress::{parse_progress_line, ProgressLine, StepStatus};
-use crate::script::render::{ABSENT_REASON_PREFIX, APPLY_STEP, CHECK_STEP, SWITCH_STEPS, VERIFY_STEP};
+use crate::script::render::{self, ABSENT_REASON_PREFIX, CHECK_STEP};
 use crate::script::run::CancelHandle;
 
 /// What the app tells the webview while a switch runs.
@@ -89,6 +89,7 @@ pub enum FailureExplanation {
 
 /// The switch the app is running right now.
 pub(super) struct ActiveSwitch {
+    layout_id: String,
     layout_name: String,
     cancel: CancelHandle,
     /// Set once the Apply arrangement step reports, after which Cancel is refused.
@@ -138,6 +139,7 @@ impl App {
             }
             let running = self.runner.start(&script, &[])?;
             *active = Some(ActiveSwitch {
+                layout_id: layout.id.clone(),
                 layout_name: layout.name.clone(),
                 cancel: running.cancel_handle(),
                 apply_started: false,
@@ -146,11 +148,12 @@ impl App {
             running
         };
         let started = Instant::now();
+        let timeline = render::timeline(layout);
         self.log(format!("switch {}: started", layout.name));
         on_event(SwitchEvent::Started {
             layout_id: layout.id.clone(),
-            steps: SWITCH_STEPS.iter().map(|s| s.to_string()).collect(),
-            apply_step: APPLY_STEP,
+            steps: timeline.rows.clone(),
+            apply_step: timeline.apply,
         });
 
         let mut last_failed: Option<ProgressLine> = None;
@@ -158,7 +161,7 @@ impl App {
         while let Some(text) = running.next_line() {
             match parse_progress_line(&text) {
                 Some(line) => {
-                    if line.step >= APPLY_STEP {
+                    if line.step >= timeline.apply {
                         if let Some(active) = self.active_switch().as_mut() {
                             active.apply_started = true;
                         }
@@ -199,7 +202,7 @@ impl App {
             self.log(format!("switch {}: cancelled", layout.name));
             return Ok(SwitchResult::Cancelled);
         }
-        let result = self.failure(layout, &config, exit_code, last_failed, &last_log);
+        let result = self.failure(layout, &config, &timeline, exit_code, last_failed, &last_log);
         if let SwitchResult::Failed {
             step_name, reason, ..
         } = &result
@@ -232,6 +235,13 @@ impl App {
         Ok(())
     }
 
+    /// The id of the layout a switch is running for, when one is.
+    pub fn switching_layout_id(&self) -> Option<String> {
+        self.active_switch()
+            .as_ref()
+            .map(|active| active.layout_id.clone())
+    }
+
     /// The layout a switch is running for, when one is.
     pub fn switching(&self) -> Option<String> {
         self.active_switch()
@@ -251,6 +261,7 @@ impl App {
         &self,
         layout: &Layout,
         config: &Config,
+        timeline: &render::Timeline,
         exit_code: i32,
         last_failed: Option<ProgressLine>,
         last_log: &str,
@@ -258,7 +269,7 @@ impl App {
         let log_path = self.switch_log_path(layout).display().to_string();
         match last_failed {
             Some(line) => {
-                let explanation = self.explain(layout, config, &line);
+                let explanation = self.explain(layout, config, timeline, &line);
                 let parts = line.failure_parts();
                 SwitchResult::Failed {
                     step: Some(line.step),
@@ -290,8 +301,15 @@ impl App {
     /// or where the arrangement landed. Other steps explain nothing beyond the script's
     /// line. When the probe cannot run or disagrees with the script (the monitor came
     /// back in between), the check step's names come from the script's own reason.
-    fn explain(&self, layout: &Layout, config: &Config, line: &ProgressLine) -> FailureExplanation {
+    fn explain(
+        &self,
+        layout: &Layout,
+        config: &Config,
+        timeline: &render::Timeline,
+        line: &ProgressLine,
+    ) -> FailureExplanation {
         let label = layouts::labeller(&config.aliases, &layout.summary.monitors);
+        let verify_step = timeline.verify();
         match line.step {
             CHECK_STEP => {
                 let from_probe: Vec<String> = self
@@ -320,7 +338,7 @@ impl App {
                 };
                 FailureExplanation::Absent { monitors }
             }
-            VERIFY_STEP => match self.probe() {
+            step if step == verify_step => match self.probe() {
                 Ok(inventory) => {
                     let outcome = verify(&layout.summary, &inventory, label);
                     FailureExplanation::Verify {
@@ -627,6 +645,72 @@ mod tests {
             ),
             other => panic!("expected Failed, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn a_timeline_with_wait_steps_reaches_the_screen_in_order_and_applies() {
+        use crate::config::layouts::{ApplyFailure, LayoutEdits, Step, StepKind, StepSide};
+        let lines = &[
+            "[1/5] running Check monitors",
+            "[1/5] done Check monitors",
+            "[2/5] running Wait 3 seconds",
+            "[2/5] done Wait 3 seconds",
+            "[3/5] running Apply arrangement",
+            "[3/5] done Apply arrangement",
+            "[4/5] running Wait 1 second",
+            "[4/5] done Wait 1 second",
+            "[5/5] running Verify",
+            "[5/5] done Verify",
+            "Exit code 0",
+        ];
+        let (_dir, app, layout) =
+            app_with(FakeScriptRunner::with_stdout(FIVE).streaming(lines, 0));
+        let wait = |id: &str, side, seconds| Step {
+            id: id.into(),
+            side,
+            kind: StepKind::Wait { seconds },
+        };
+        app.save_layout(
+            &layout.id,
+            LayoutEdits {
+                steps: vec![wait("a", StepSide::Before, 3), wait("b", StepSide::After, 1)],
+                drop_wait_seconds: 5,
+                available_wait_seconds: 120,
+                on_apply_failure: ApplyFailure::Stop,
+            },
+        )
+        .unwrap();
+        let (result, events) = collect(&app, &layout.id);
+        assert!(matches!(result.unwrap(), SwitchResult::Applied { .. }));
+        assert_eq!(
+            events[0],
+            SwitchEvent::Started {
+                layout_id: layout.id.clone(),
+                steps: vec![
+                    "Check monitors".into(),
+                    "Wait 3 seconds".into(),
+                    "Apply arrangement".into(),
+                    "Wait 1 second".into(),
+                    "Verify".into()
+                ],
+                apply_step: 3,
+            }
+        );
+        assert_eq!(
+            progress_lines(&events),
+            vec![
+                "1/5 Running Check monitors",
+                "1/5 Done Check monitors",
+                "2/5 Running Wait 3 seconds",
+                "2/5 Done Wait 3 seconds",
+                "3/5 Running Apply arrangement",
+                "3/5 Done Apply arrangement",
+                "4/5 Running Wait 1 second",
+                "4/5 Done Wait 1 second",
+                "5/5 Running Verify",
+                "5/5 Done Verify",
+            ]
+        );
     }
 
     #[test]

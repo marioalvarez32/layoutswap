@@ -10,6 +10,11 @@ export type AppErrorPayload = { message: string,
 logPath: string | null, };
 
 /**
+ * What a switch does when the arrangement apply fails (CONTEXT.md: Extend fallback).
+ */
+export type ApplyFailure = "stop" | "extend";
+
+/**
  * The SetDisplayConfig path and mode arrays exactly as Windows returned them for the
  * active monitors, base64-encoded, with the GPU device paths needed to remap the
  * per-boot adapter identifiers at apply time.
@@ -68,11 +73,32 @@ id: string, name: string,
 /**
  * The folder under `<app root>\layouts` holding the generated script and its log.
  */
-folder: string, capturedAt: string, arrangement: ArrangementBlob, summary: Summary, 
+folder: string, capturedAt: string, 
+/**
+ * When the layout last changed, at capture or at a save; the stale rule reads it.
+ */
+updatedAt: string, arrangement: ArrangementBlob, summary: Summary, 
+/**
+ * The steps around the apply, in order (CONTEXT.md: Timeline).
+ */
+steps: Array<Step>, 
+/**
+ * How long a send step waits for its monitor to drop before going on.
+ */
+dropWaitSeconds: number, 
+/**
+ * How long a wait for a monitor to become Available lasts before failing.
+ */
+availableWaitSeconds: number, onApplyFailure: ApplyFailure, 
 /**
  * The generated switch script on disk, or null when none has been written yet.
  */
 script: ScriptRecord | null, };
+
+/**
+ * What a save from the layout editor changes: the steps, the timings and the fallback.
+ */
+export type LayoutEdits = { steps: Array<Step>, dropWaitSeconds: number, availableWaitSeconds: number, onApplyFailure: ApplyFailure, };
 
 /**
  * One physical monitor, identified by its device path (ADR-0005).
@@ -148,6 +174,25 @@ export type ScriptState = "current" | "stale" | "missing";
 export type ScriptStatus = { layoutId: string, state: ScriptState, path: string, };
 
 export type Size = { width: number, height: number, };
+
+/**
+ * One ordered action inside a switch (CONTEXT.md: Step).
+ */
+export type Step = { 
+/**
+ * Stable for the life of the step, so the editor can track rows.
+ */
+id: string, side: StepSide, } & ({ "kind": "wait", seconds: number, });
+
+/**
+ * What a step does. The send step arrives with its own ticket.
+ */
+export type StepKind = { "kind": "wait", seconds: number, };
+
+/**
+ * Which side of Apply arrangement a step runs on.
+ */
+export type StepSide = "before" | "after";
 
 export type StepStatus = "running" | "done" | "failed" | "skipped";
 

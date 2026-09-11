@@ -22,8 +22,10 @@
 //!
 //! A switch script prints one line per step status change, in the format
 //! `[step/of] status text` where status is `running`, `done`, `failed` or `skipped`;
-//! see [`super::progress`] for the parser. The steps are [`SWITCH_STEPS`], in that
-//! order, and a cancel is refused from [`APPLY_STEP`] on. A failed line's text is
+//! see [`super::progress`] for the parser. The rows are the layout's [`timeline`]:
+//! Check monitors, the steps before the apply, Apply arrangement, the steps after it,
+//! Verify, numbered over the whole switch; a cancel is refused from the apply row on.
+//! A failed line's text is
 //! `<step name>: <next action>; <reason>`, with ` (Windows error N)` appended when a
 //! code exists; [`super::progress::ProgressLine::failure_parts`] splits it. The
 //! check step's reason is `Absent: <label>, <label>`, so the app can name the
@@ -44,19 +46,64 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::config::layouts::{monitor_labels, Layout};
+use crate::config::layouts::{monitor_labels, step_sentence, Layout, Step, StepSide};
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 3;
+pub const TEMPLATE_VERSION: u32 = 4;
 
-/// The steps of the switch script, in order, as its header lists them. The template
-/// defines them; the tests below pin the two to each other.
-pub const SWITCH_STEPS: [&str; 3] = ["Check monitors", "Apply arrangement", "Verify"];
-/// The one-based step from which a cancel is refused: the arrangement is changing.
-pub const APPLY_STEP: u32 = 2;
-/// The step that names Absent monitors, and the one that compares the arrangement.
+/// The fixed rows of every switch, by name.
+pub const CHECK_ROW: &str = "Check monitors";
+pub const APPLY_ROW: &str = "Apply arrangement";
+pub const VERIFY_ROW: &str = "Verify";
+/// Check monitors is always the first row.
 pub const CHECK_STEP: u32 = 1;
-pub const VERIFY_STEP: u32 = 3;
+
+/// The rows a layout's switch runs through, numbered from one, and where the fixed
+/// ones sit (CONTEXT.md: Timeline).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Timeline {
+    pub rows: Vec<String>,
+    /// The one-based row of Apply arrangement, from which a cancel is refused.
+    pub apply: u32,
+}
+
+impl Timeline {
+    /// Verify is always the last row.
+    pub fn verify(&self) -> u32 {
+        self.rows.len() as u32
+    }
+}
+
+pub fn timeline(layout: &Layout) -> Timeline {
+    let numbered = numbered_steps(layout);
+    let before = numbered.iter().filter(|(_, s)| s.side == StepSide::Before);
+    let after = numbered.iter().filter(|(_, s)| s.side == StepSide::After);
+    let mut rows = vec![CHECK_ROW.to_string()];
+    rows.extend(before.map(|(_, s)| step_sentence(s)));
+    let apply = rows.len() as u32 + 1;
+    rows.push(APPLY_ROW.to_string());
+    rows.extend(after.map(|(_, s)| step_sentence(s)));
+    rows.push(VERIFY_ROW.to_string());
+    Timeline { rows, apply }
+}
+
+/// Every step with its row number: the rule that numbers the timeline, in one place.
+/// Check monitors is row 1, the before steps follow, the apply takes the next row,
+/// then the after steps, then Verify.
+fn numbered_steps(layout: &Layout) -> Vec<(u32, &Step)> {
+    let mut row = CHECK_STEP;
+    let mut out = Vec::new();
+    for side in [StepSide::Before, StepSide::After] {
+        if side == StepSide::After {
+            row += 1; // Apply arrangement
+        }
+        for step in layout.steps.iter().filter(|s| s.side == side) {
+            row += 1;
+            out.push((row, step));
+        }
+    }
+    out
+}
 /// The prefix of the check step's failure reason, followed by the labels joined by
 /// a comma and a space.
 pub const ABSENT_REASON_PREFIX: &str = "Absent: ";
@@ -124,7 +171,31 @@ pub fn render_switch(
             })
             .collect(),
     };
+    let timeline = timeline(layout);
+    let header = timeline
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(i, row)| format!("[{}/{}] {row}", i + 1, timeline.rows.len()))
+        .collect::<Vec<_>>()
+        .join("  ");
+    let numbered = numbered_steps(layout);
+    let blocks = |side: StepSide| -> Vec<String> {
+        numbered
+            .iter()
+            .filter(|(_, s)| s.side == side)
+            .map(|(row, s)| step_block(*row, s))
+            .collect()
+    };
+    let before_blocks = blocks(StepSide::Before);
+    let after_blocks = blocks(StepSide::After);
     let text = SWITCH_TEMPLATE
+        .replace("{{STEPS_HEADER}}", &header)
+        .replace("{{STEP_COUNT}}", &timeline.rows.len().to_string())
+        .replace("{{APPLY_STEP}}", &timeline.apply.to_string())
+        .replace("{{VERIFY_STEP}}", &timeline.verify().to_string())
+        .replace("{{STEPS_BEFORE_PS}}", &before_blocks.join("\n"))
+        .replace("{{STEPS_AFTER_PS}}", &after_blocks.join("\n"))
         .replace("{{LAYOUT_NAME}}", &layout.name)
         .replace("{{LAYOUT_NAME_PS}}", &ps_escape(&layout.name))
         .replace("{{LAYOUT_ID}}", &ps_escape(&layout.id))
@@ -140,6 +211,30 @@ pub fn render_switch(
         )
         .replace("{{SUMMARY_JSON}}", &here_string_json(&summary));
     Script { text }
+}
+
+/// The PowerShell block for one step at its row. Validate-only runs skip every step.
+fn step_block(row: u32, step: &Step) -> String {
+    use crate::config::layouts::StepKind;
+    let sentence = ps_escape(&step_sentence(step));
+    let body: Vec<String> = match &step.kind {
+        StepKind::Wait { seconds } => vec![format!("    Start-Sleep -Seconds {seconds}")],
+    };
+    let rule = "#-----------------------------------------------------------------------------";
+    let mut lines = vec![
+        rule.to_string(),
+        format!("# [{row}] {sentence}"),
+        rule.to_string(),
+        "if ($ValidateOnly) {".to_string(),
+        format!("    Write-Step {row} 'skipped' '{sentence}: validated only'"),
+        "} else {".to_string(),
+        format!("    Write-Step {row} 'running' '{sentence}'"),
+    ];
+    lines.extend(body);
+    lines.push(format!("    Write-Step {row} 'done' '{sentence}'"));
+    lines.push("}".to_string());
+    lines.push(String::new());
+    lines.join("\n")
 }
 
 /// Inside a single-quoted PowerShell string only the quote itself needs care.
@@ -178,7 +273,10 @@ struct EmbeddedMonitor<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::layouts::{summarise, Summary};
+    use crate::config::layouts::{
+        summarise, ApplyFailure, Step, StepKind, Summary, DEFAULT_AVAILABLE_WAIT_SECONDS,
+        DEFAULT_DROP_WAIT_SECONDS,
+    };
     use crate::hardware::{parse, ArrangementBlob, Inventory, MonitorState};
     use crate::script::progress::{parse_progress_line, StepStatus};
     use std::fs;
@@ -206,9 +304,22 @@ mod tests {
             name: name.into(),
             folder: crate::config::layouts::slug(name),
             captured_at: "2026-09-09T14:33:00-05:00".into(),
+            updated_at: "2026-09-09T14:33:00-05:00".into(),
             arrangement: inventory.arrangement.clone(),
             summary: summarise(inventory),
+            steps: vec![],
+            drop_wait_seconds: DEFAULT_DROP_WAIT_SECONDS,
+            available_wait_seconds: DEFAULT_AVAILABLE_WAIT_SECONDS,
+            on_apply_failure: ApplyFailure::Stop,
             script: None,
+        }
+    }
+
+    fn wait(id: &str, side: StepSide, seconds: u32) -> Step {
+        Step {
+            id: id.into(),
+            side,
+            kind: StepKind::Wait { seconds },
         }
     }
 
@@ -250,10 +361,19 @@ mod tests {
             "Portrait".to_string(),
         );
 
+        // The desk again with wait steps on both sides of the apply.
+        let mut steps = layout("Desk with steps", &five);
+        steps.steps = vec![
+            wait("step-a", StepSide::Before, 3),
+            wait("step-b", StepSide::After, 1),
+            wait("step-c", StepSide::After, 10),
+        ];
+
         vec![
             ("switch-desk.ps1", desk, BTreeMap::new()),
             ("switch-one-off.ps1", one_off, BTreeMap::new()),
             ("switch-twins.ps1", twins_layout, twin_aliases),
+            ("switch-steps.ps1", steps, BTreeMap::new()),
         ]
     }
 
@@ -286,6 +406,38 @@ mod tests {
                 "the rendered script differs from tests/golden/{name}; if the change is intended, run `cargo test -- --ignored write_golden_files`"
             );
         }
+    }
+
+    #[test]
+    fn the_timeline_numbers_steps_around_the_fixed_rows() {
+        let (_, layout, aliases) = fixtures().remove(3);
+        let t = timeline(&layout);
+        assert_eq!(
+            t.rows,
+            vec![
+                "Check monitors",
+                "Wait 3 seconds",
+                "Apply arrangement",
+                "Wait 1 second",
+                "Wait 10 seconds",
+                "Verify"
+            ]
+        );
+        assert_eq!(t.apply, 3);
+        assert_eq!(t.verify(), 6);
+        let text = render(&layout, &aliases);
+        assert!(text.contains("# Steps: [1/6] Check monitors  [2/6] Wait 3 seconds  [3/6] Apply arrangement  [4/6] Wait 1 second  [5/6] Wait 10 seconds  [6/6] Verify"), "{text}");
+        assert!(text.contains("Write-Step 2 'running' 'Wait 3 seconds'"));
+        assert!(text.contains("Write-Step 5 'done' 'Wait 10 seconds'"));
+        assert!(text.contains("Write-Step $ApplyStep 'running' 'Apply arrangement'"));
+        assert!(text.contains("Write-Step $VerifyStep 'done' 'Verify'"));
+        assert!(text.contains("    Write-Step 2 'running' 'Wait 3 seconds'\n    Start-Sleep -Seconds 3\n    Write-Step 2 'done'"), "{text}");
+        let wait_at = text.find("Write-Step 2 'running'").unwrap();
+        let apply_at = text.find("Write-Step $ApplyStep 'running'").unwrap();
+        let after_at = text.find("Write-Step 4 'running'").unwrap();
+        let verify_at = text.find("Write-Step $VerifyStep 'running'").unwrap();
+        assert!(wait_at < apply_at && apply_at < after_at && after_at < verify_at);
+        assert_eq!(timeline(&fixtures().remove(0).1).apply, 2);
     }
 
     #[test]
@@ -345,21 +497,24 @@ mod tests {
     /// come out as a line the app's parser reads back.
     #[test]
     fn every_progress_line_the_template_prints_parses() {
-        let (_, desk, aliases) = fixtures().remove(0);
-        let text = render(&desk, &aliases);
+        // The steps fixture has six rows; the fixed rows print through variables.
+        let (_, desk, aliases) = fixtures().remove(3);
+        let t = timeline(&desk);
+        let of = t.rows.len() as u32;
+        let raw = render(&desk, &aliases);
+        assert!(raw.contains("$ApplyStep     = 3"));
+        assert!(raw.contains("$VerifyStep    = 6"));
+        let text = raw
+            .replace("$ApplyStep", &t.apply.to_string())
+            .replace("$VerifyStep", &t.verify().to_string());
         assert!(text.contains(r#""[{0}/{1}] {2} {3}" -f $step, $StepCount, $status, $text"#));
-        // The app lists the steps before the script reports any: the two agree.
+        // The app lists the rows before the script reports any: the two agree.
         let header = text
             .lines()
             .find(|l| l.starts_with("# Steps:"))
-            .expect("the header lists the steps");
-        for (i, name) in SWITCH_STEPS.iter().enumerate() {
-            assert!(header.contains(&format!("[{}/3] {name}", i + 1)), "{header}");
-        }
-        assert!(text.contains(&format!(
-            "Write-Step {APPLY_STEP} 'running' '{}'",
-            SWITCH_STEPS[APPLY_STEP as usize - 1]
-        )));
+            .expect("the header lists the rows");
+        assert_eq!(header, "# Steps: [1/6] Check monitors  [2/6] Wait 3 seconds  [3/6] Apply arrangement  [4/6] Wait 1 second  [5/6] Wait 10 seconds  [6/6] Verify");
+        assert!(text.contains("$StepCount     = 6"));
         assert!(text.contains("[Console]::OutputEncoding"));
         assert!(text.contains(&format!("(\"{ABSENT_REASON_PREFIX}{{0}}\" -f ($absent -join ', '))")), "{text}");
         let mut seen = 0;
@@ -372,11 +527,11 @@ mod tests {
             };
             let parts: Vec<&str> = rest.split('\'').collect();
             let (status, step_text) = (parts[1], parts[3]);
-            let printed = format!("[{step}/3] {status} {step_text}");
+            let printed = format!("[{step}/{of}] {status} {step_text}");
             let parsed = parse_progress_line(&printed)
                 .unwrap_or_else(|| panic!("{printed:?} does not parse"));
             assert_eq!(parsed.step, step.to_digit(10).unwrap());
-            assert_eq!(parsed.of, 3);
+            assert_eq!(parsed.of, of);
             assert_eq!(parsed.text, step_text);
             assert!(matches!(
                 (status, parsed.status),
@@ -386,7 +541,7 @@ mod tests {
             ));
             seen += 1;
         }
-        assert!(seen >= 6, "found only {seen} Write-Step calls");
+        assert!(seen >= 15, "found only {seen} Write-Step calls");
         // A failure line built the same way parses too.
         let failure = parse_progress_line(
             "[2/3] failed Apply arrangement: try the switch again; Windows could not apply the arrangement, bad configuration (Windows error 1610)",

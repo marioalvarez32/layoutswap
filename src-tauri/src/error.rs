@@ -94,6 +94,9 @@ pub enum AppError {
     #[error("{reason}")]
     InvalidLayoutName { reason: String },
 
+    #[error("{reason}")]
+    InvalidLayoutEdit { reason: String },
+
     #[error("Pick the layout again from the sidebar: no layout has the id {id} any more.")]
     LayoutNotFound { id: String },
 

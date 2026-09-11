@@ -15,7 +15,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::config::layouts::{
-    self, CaptureOutcome, Layout, ScriptRecord, ScriptState, ScriptStatus, SWITCH_SCRIPT_NAME,
+    self, ApplyFailure, CaptureOutcome, Layout, LayoutEdits, ScriptRecord, ScriptState,
+    ScriptStatus, DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
+    SWITCH_SCRIPT_NAME,
 };
 use crate::config::store::ConfigStore;
 use crate::config::{Config, WindowSize};
@@ -130,8 +132,8 @@ impl App {
 
     /// Capture: the latest probe becomes a layout with the given name, and its switch
     /// script is written. With `replace_id` the layout with that id is re-captured under
-    /// the same id; without it, a name another layout already has (compared without
-    /// case) is reported, not overwritten.
+    /// the same id, keeping its steps, timings and fallback; without it, a name another
+    /// layout already has (compared without case) is reported, not overwritten.
     pub fn capture(
         &self,
         name: &str,
@@ -176,13 +178,25 @@ impl App {
                 (id, folder, None)
             }
         };
+        let previous = index.map(|i| &config.layouts[i]);
         let mut layout = Layout {
             id,
             name,
             folder,
+            updated_at: captured_at.clone(),
             captured_at,
             arrangement: inventory.arrangement.clone(),
             summary,
+            steps: previous.map(|l| l.steps.clone()).unwrap_or_default(),
+            drop_wait_seconds: previous
+                .map(|l| l.drop_wait_seconds)
+                .unwrap_or(DEFAULT_DROP_WAIT_SECONDS),
+            available_wait_seconds: previous
+                .map(|l| l.available_wait_seconds)
+                .unwrap_or(DEFAULT_AVAILABLE_WAIT_SECONDS),
+            on_apply_failure: previous
+                .map(|l| l.on_apply_failure)
+                .unwrap_or(ApplyFailure::Stop),
             script: None,
         };
         self.write_switch_script(&mut layout, &config)?;
@@ -199,6 +213,41 @@ impl App {
         Ok(CaptureOutcome::Saved {
             layout: Box::new(layout),
         })
+    }
+
+    /// Save from the layout editor: the steps, timings and fallback replace the layout's,
+    /// `updated_at` moves, and the script is regenerated once. Refused when the edits
+    /// break their bounds, and while that layout is switching.
+    pub fn save_layout(&self, layout_id: &str, edits: LayoutEdits) -> Result<Layout, AppError> {
+        layouts::validate_edits(&edits)?;
+        if self.switching_layout_id().as_deref() == Some(layout_id) {
+            return Err(AppError::SwitchRunning {
+                layout: self.switching().unwrap_or_default(),
+            });
+        }
+        let mut config = self.store.load()?;
+        let index = config
+            .layouts
+            .iter()
+            .position(|l| l.id == layout_id)
+            .ok_or_else(|| AppError::LayoutNotFound {
+                id: layout_id.to_string(),
+            })?;
+        let mut layout = config.layouts[index].clone();
+        layout.steps = edits.steps;
+        layout.drop_wait_seconds = edits.drop_wait_seconds;
+        layout.available_wait_seconds = edits.available_wait_seconds;
+        layout.on_apply_failure = edits.on_apply_failure;
+        layout.updated_at = now();
+        self.write_switch_script(&mut layout, &config)?;
+        config.layouts[index] = layout.clone();
+        self.store.save(&config)?;
+        self.log(format!(
+            "save {}: {} steps",
+            layout.name,
+            layout.steps.len()
+        ));
+        Ok(layout)
     }
 
     /// Rewrites one layout's script and clears its stale state.
@@ -533,6 +582,53 @@ mod tests {
         let config = app.load_config().unwrap();
         assert_eq!(config.layouts.len(), 1);
         assert_eq!(config.layouts[0].id, first.id);
+    }
+
+    #[test]
+    fn save_replaces_the_steps_moves_updated_at_and_regenerates_the_script() {
+        use crate::config::layouts::{Step, StepKind, StepSide};
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        assert_eq!(layout.updated_at, layout.captured_at);
+        let edits = LayoutEdits {
+            steps: vec![Step {
+                id: "s1".into(),
+                side: StepSide::Before,
+                kind: StepKind::Wait { seconds: 3 },
+            }],
+            drop_wait_seconds: 7,
+            available_wait_seconds: 90,
+            on_apply_failure: ApplyFailure::Extend,
+        };
+        let saved_layout = app.save_layout(&layout.id, edits.clone()).unwrap();
+        assert_eq!(saved_layout.steps, edits.steps);
+        assert_eq!(saved_layout.drop_wait_seconds, 7);
+        assert_eq!(saved_layout.on_apply_failure, ApplyFailure::Extend);
+        assert!(saved_layout.updated_at >= layout.updated_at);
+        assert_eq!(saved_layout.captured_at, layout.captured_at, "a save is not a capture");
+        let text = fs::read_to_string(app.switch_script_path(&saved_layout)).unwrap();
+        assert!(text.contains("Write-Step 2 'running' 'Wait 3 seconds'"), "{text}");
+        assert_eq!(app.script_states().unwrap()[0].state, ScriptState::Current);
+        assert_eq!(app.load_config().unwrap().layouts[0], saved_layout);
+
+        let mut bad = edits.clone();
+        bad.steps[0].kind = StepKind::Wait { seconds: 0 };
+        assert!(matches!(
+            app.save_layout(&layout.id, bad).unwrap_err(),
+            AppError::InvalidLayoutEdit { .. }
+        ));
+        assert!(matches!(
+            app.save_layout("nope", edits).unwrap_err(),
+            AppError::LayoutNotFound { .. }
+        ));
+
+        // A re-capture keeps what the editor saved.
+        let recaptured = saved(app.capture("Desk", Some(&layout.id)).unwrap());
+        assert_eq!(recaptured.steps, saved_layout.steps);
+        assert_eq!(recaptured.drop_wait_seconds, 7);
+        assert_eq!(recaptured.on_apply_failure, ApplyFailure::Extend);
+        assert_eq!(recaptured.updated_at, recaptured.captured_at);
     }
 
     #[test]

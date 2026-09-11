@@ -15,10 +15,13 @@ export function useSwitchLayout(layoutId: MaybeRefOrGetter<string>) {
   /** Why Switch is disabled, or null when it can start. */
   const blockedBy = computed(() => {
     const running = store.switching;
-    if (!running) {
-      return null;
+    if (running) {
+      return `Wait for the switch to ${running.layoutName} to finish.`;
     }
-    return `Wait for the switch to ${running.layoutName} to finish.`;
+    if (store.isDraftDirty(toValue(layoutId))) {
+      return 'Save the layout first.';
+    }
+    return null;
   });
 
   /** Starts the switch and resolves when the script has exited. A refusal lands in `error`. */

@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Inventory } from '@/domain/generated/types';
 import { newSwitchRun } from '@/domain/switch';
-import { openLog, openScript, regenerateScript, switchLayout } from '@/tauri/commands';
+import { openLog, openScript, regenerateScript, saveLayout, switchLayout } from '@/tauri/commands';
 import { inventoryFixture, layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 import LayoutDetail from './LayoutDetail.vue';
@@ -70,6 +70,31 @@ describe('LayoutDetail', () => {
     await wrapper.findAll('.actions button')[3]!.trigger('click');
     await flushPromises();
     expect(wrapper.find('.band.crit').text()).toContain('Wait for the switch to Film');
+  });
+
+  it('edits the steps, then offers Save and Discard and stands Switch down until saved', async () => {
+    const wrapper = mountDetail();
+    expect(wrapper.find('.actions button.save').exists()).toBe(false);
+    await wrapper.find('.timeline .add-before').trigger('click');
+    await flushPromises();
+    expect(wrapper.find('.timeline .sentence').text()).toBe('Wait 3 seconds');
+    expect(wrapper.find('.timeline .step').classes()).toContain('expanded');
+    expect(wrapper.find('.actions button.save').exists()).toBe(true);
+    expect(wrapper.find('.blocked').text()).toBe('Save the layout first.');
+
+    await wrapper.find('.actions button.save').trigger('click');
+    await flushPromises();
+    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ steps: [expect.objectContaining({ kind: 'wait', seconds: 3, side: 'before' })] }));
+    expect(wrapper.find('.actions button.save').exists()).toBe(false);
+    expect(wrapper.find('.blocked').exists()).toBe(false);
+  });
+
+  it('discards the draft back to the layout', async () => {
+    const wrapper = mountDetail();
+    await wrapper.find('.timeline .add-after').trigger('click');
+    await wrapper.find('.actions button.discard').trigger('click');
+    expect(wrapper.findAll('.timeline .sentence')).toHaveLength(0);
+    expect(wrapper.find('.actions button.save').exists()).toBe(false);
   });
 
   it('shows the name, when it was captured, and the read-only note', () => {

@@ -53,6 +53,11 @@ export function layoutFixture(): Layout {
     name: 'Desk',
     folder: 'desk',
     capturedAt: '2026-09-09T14:33:00.0000000-05:00',
+    updatedAt: '2026-09-09T14:33:00.0000000-05:00',
+    steps: [],
+    dropWaitSeconds: 5,
+    availableWaitSeconds: 120,
+    onApplyFailure: 'stop',
     script: { templateVersion: 1, renderedAt: '2026-09-09T14:33:01.0000000-05:00' },
     arrangement: inventory.arrangement,
     summary: {

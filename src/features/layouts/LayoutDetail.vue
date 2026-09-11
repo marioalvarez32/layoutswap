@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
 import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
 import { describeCaptureTime } from '@/domain/time';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import ArrangementSchematic from './ArrangementSchematic.vue';
+import StepsEditor from './StepsEditor.vue';
+import { useLayoutEditor } from './useLayoutEditor';
 import { useLayoutScript } from './useLayoutScript';
 import { useSwitchLayout } from './useSwitchLayout';
 
@@ -18,7 +20,13 @@ const props = defineProps<{
 
 const script = useLayoutScript(() => props.layout.id);
 const switchAction = useSwitchLayout(() => props.layout.id);
-const error = computed(() => script.error.value ?? switchAction.error.value);
+const editor = useLayoutEditor(() => props.layout.id);
+const stepsEditor = ref<InstanceType<typeof StepsEditor> | null>(null);
+
+function addStep(side: 'before' | 'after') {
+  stepsEditor.value?.expand(editor.addStep(side));
+}
+const error = computed(() => script.error.value ?? switchAction.error.value ?? editor.error.value);
 
 type Tone = 'good' | 'warn' | 'crit' | 'mute';
 const TONES: Record<MonitorState, Tone> = { Active: 'good', Available: 'warn', Absent: 'crit' };
@@ -69,6 +77,19 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
         </p>
       </div>
       <div class="actions">
+        <template v-if="editor.dirty.value">
+          <Button class="discard" :disabled="editor.saving.value" @click="editor.discard">
+            Discard
+          </Button>
+          <Button
+            variant="primary"
+            class="save"
+            :disabled="editor.saving.value"
+            @click="editor.save"
+          >
+            Save
+          </Button>
+        </template>
         <Button :disabled="script.busy.value" @click="script.open">
           Open script
         </Button>
@@ -129,6 +150,19 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
             <span v-else class="faint">none, every connected monitor is on.</span>
           </div>
         </div>
+      </section>
+
+      <section class="section">
+        <div class="section-head">
+          <h3>Steps</h3>
+          <span class="muted">Run in order around Apply arrangement. Save to regenerate the script.</span>
+        </div>
+        <StepsEditor
+          ref="stepsEditor"
+          :steps="editor.edits.value.steps"
+          @change="editor.setSteps"
+          @add="addStep"
+        />
       </section>
 
       <section class="section">

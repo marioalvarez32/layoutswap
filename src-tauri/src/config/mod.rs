@@ -19,7 +19,7 @@ use layouts::Layout;
 
 /// The schema version this build writes. Reading a newer version is an error; older
 /// versions are migrated forward in [`store::migrate`].
-pub const SCHEMA_VERSION: u32 = 1;
+pub const SCHEMA_VERSION: u32 = 2;
 
 /// The size the window opens at on first run (DESIGN.md, Q7).
 pub const DEFAULT_WINDOW_SIZE: WindowSize = WindowSize {

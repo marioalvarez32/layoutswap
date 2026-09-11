@@ -3,10 +3,12 @@ import { storeToRefs } from 'pinia';
 import { computed, onMounted, ref } from 'vue';
 import LayoutDetail from '@/features/layouts/LayoutDetail.vue';
 import LayoutsEmptyState from '@/features/layouts/LayoutsEmptyState.vue';
+import SaveChangesDialog from '@/features/layouts/SaveChangesDialog.vue';
 import SaveLayoutPage from '@/features/layouts/SaveLayoutPage.vue';
 import Sidebar from '@/features/layouts/Sidebar.vue';
 import SwitchProgress from '@/features/layouts/SwitchProgress.vue';
 import { useLayoutsStore } from '@/features/layouts/layouts.store';
+import { useUnsavedGuard } from '@/features/layouts/useUnsavedGuard';
 import { useWindowSize } from '@/features/settings/useWindowSize';
 import { formatProbeTime } from '@/domain/time';
 
@@ -25,8 +27,13 @@ const switchOnScreen = computed(() => switchRun.value !== null && switchRun.valu
 const lastProbe = computed(() => (inventory.value ? formatProbeTime(inventory.value.probedAt) : null));
 const banner = computed(() => loadError.value ?? windowSizeError.value);
 
+// Leaving a layout with unsaved steps asks first; the move waits on the answer.
+const unsaved = useUnsavedGuard();
+
 function openSave() {
-  savePageOpen.value = true;
+  unsaved.guard(() => {
+    savePageOpen.value = true;
+  });
 }
 
 function closeSave() {
@@ -34,8 +41,13 @@ function closeSave() {
 }
 
 function onSelect(id: string) {
-  layoutsStore.select(id);
-  savePageOpen.value = false;
+  if (id === selectedId.value && !savePageOpen.value) {
+    return;
+  }
+  unsaved.guard(() => {
+    layoutsStore.select(id);
+    savePageOpen.value = false;
+  });
 }
 
 async function onImport() {
@@ -62,6 +74,15 @@ onMounted(async () => {
       @select="onSelect"
       @export="layoutsStore.exportConfig"
       @import="onImport"
+    />
+    <SaveChangesDialog
+      :open="unsaved.asking.value"
+      :layout-name="unsaved.layoutName.value"
+      :saving="unsaved.saving.value"
+      :error="unsaved.error.value"
+      @save="unsaved.save"
+      @discard="unsaved.discard"
+      @keep="unsaved.keep"
     />
     <main class="content">
       <p v-if="banner" class="alert" role="alert">

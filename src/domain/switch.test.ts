@@ -232,6 +232,18 @@ describe('failureBand', () => {
     });
   });
 
+  it('leads a landed Extend fallback with Settings > Display and says what Extend did', () => {
+    const band = failureBand(run({
+      result: failed({ step: 2, stepName: 'Apply arrangement', nextAction: 'arrange the monitors in Windows Settings > Display, then save the layout again', reason: 'Windows Extend was applied instead: Windows could not apply the arrangement, invalid parameter', exitCode: 1, explanation: { kind: 'extended' } }),
+    }));
+    expect(band).toEqual({
+      action: 'Arrange the monitors in Settings > Display, then Save current layout again.',
+      detail: 'Windows Extend was applied instead, so every monitor shows the desktop but not in this layout\'s arrangement.',
+      offerDisplaySettings: true,
+      warnings: [],
+    });
+  });
+
   it('falls back to the script line for other steps', () => {
     const band = failureBand(run({
       result: failed({

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
-import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
+import type { ApplyFailure, Inventory, Layout, MonitorState } from '@/domain/generated/types';
 import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
 import { stepLabeller, AVAILABLE_WAIT_SECONDS_MAX, DROP_WAIT_SECONDS_MAX } from '@/domain/steps';
 import { describeCaptureTime } from '@/domain/time';
@@ -34,6 +34,12 @@ const stepMonitors = computed(() => props.layout.summary.monitors.map((m) => ({
   currentInput: liveMonitor(props.inventory, m.devicePath)?.inputSource ?? null,
 })));
 const stepsEditor = ref<InstanceType<typeof StepsEditor> | null>(null);
+
+// The fallback choice, in the words the design record uses.
+const FALLBACK_CHOICES: { value: ApplyFailure; text: string }[] = [
+  { value: 'stop', text: 'Stop and explain' },
+  { value: 'extend', text: 'Fall back to Windows Extend when a monitor is not Available' },
+];
 
 function addStep(side: 'before' | 'after') {
   stepsEditor.value?.expand(editor.addStep(side));
@@ -181,6 +187,19 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
           @change="editor.setSteps"
           @add="addStep"
         />
+        <fieldset class="fallback">
+          <legend>If the switch fails</legend>
+          <label v-for="choice in FALLBACK_CHOICES" :key="choice.value" class="fallback-choice">
+            <input
+              type="radio"
+              name="on-apply-failure"
+              :value="choice.value"
+              :checked="editor.edits.value.onApplyFailure === choice.value"
+              @change="editor.patch({ onApplyFailure: choice.value })"
+            >
+            <span>{{ choice.text }}</span>
+          </label>
+        </fieldset>
         <details class="advanced">
           <summary>Advanced: drop wait {{ editor.edits.value.dropWaitSeconds }} s · Available wait {{ editor.edits.value.availableWaitSeconds }} s</summary>
           <label class="field">
@@ -192,7 +211,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
               :max="DROP_WAIT_SECONDS_MAX"
               :value="editor.edits.value.dropWaitSeconds"
               :aria-invalid="editor.dropWaitRule.value ? 'true' : undefined"
-              @input="editor.setDropWait(Number(($event.target as HTMLInputElement).value))"
+              @input="editor.patch({ dropWaitSeconds: Number(($event.target as HTMLInputElement).value) })"
             >
             <span>seconds a send step waits for its monitor to drop</span>
           </label>
@@ -206,7 +225,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
               :max="AVAILABLE_WAIT_SECONDS_MAX"
               :value="editor.edits.value.availableWaitSeconds"
               :aria-invalid="editor.availableWaitRule.value ? 'true' : undefined"
-              @input="editor.setAvailableWait(Number(($event.target as HTMLInputElement).value))"
+              @input="editor.patch({ availableWaitSeconds: Number(($event.target as HTMLInputElement).value) })"
             >
             <span>seconds a wait for a monitor to become Available lasts, Check monitors included</span>
           </label>
@@ -441,6 +460,29 @@ ul {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--r);
+}
+
+.fallback legend {
+  padding: 0 var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.fallback-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
 }
 
 .advanced {

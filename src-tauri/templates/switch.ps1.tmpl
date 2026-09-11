@@ -15,6 +15,10 @@
 # already applied skips the apply with a log line and verifies. The layout's own
 # steps sit around the apply; a validate-only run skips them.
 #
+# When the apply fails and the layout chose the fallback, and a monitor is not
+# Available, Windows Extend is applied across every remaining monitor so no screen
+# stays dark; the switch still exits as failed and says so.
+#
 # Switches: -Pause keeps the console open at the end (shortcuts pass it);
 # -ValidateOnly checks and validates but applies nothing, then verifies what is on now.
 #
@@ -40,6 +44,9 @@ $MonitorsOff   = @(
 )
 $DropWaitSeconds      = {{DROP_WAIT_SECONDS}}      # how long a send step waits for its monitor to drop
 $AvailableWaitSeconds = {{AVAILABLE_WAIT_SECONDS}}    # how long a wait for a monitor to be Available lasts
+# When the arrangement cannot be applied: stop and explain, or extend across every
+# Available monitor when one is gone, so no screen stays dark.
+$OnApplyFailure       = '{{ON_APPLY_FAILURE}}'
 
 #-----------------------------------------------------------------------------
 # Embedded layout data (written by layoutswap at capture; never edited)
@@ -228,6 +235,13 @@ namespace LayoutswapSwitch {
             return SetDisplayConfig((uint)paths.Length, paths, (uint)modes.Length, modes, flags);
         }
 
+        // Windows Extend across every monitor that is on, whatever the layout said: the
+        // fallback when an apply fails with a monitor gone (CONTEXT.md: Extend fallback).
+        const uint SDC_TOPOLOGY_EXTEND = 0x4;
+        public static int Extend() {
+            return SetDisplayConfig(0, null, 0, null, SDC_APPLY | SDC_TOPOLOGY_EXTEND);
+        }
+
         static T[] FromBytes<T>(byte[] buf) {
             int sz = Marshal.SizeOf(typeof(T)); var arr = new T[buf.Length / sz];
             var h = GCHandle.Alloc(buf, GCHandleType.Pinned);
@@ -398,6 +412,29 @@ function Get-ApplyReason([int]$rc) {
 
 $ArrangeAgain = 'arrange the monitors in Windows Settings > Display, then save the layout again'
 
+# The apply could not be validated or applied, for $reason with Windows code $rc. With
+# the fallback chosen and an on monitor not Available, Windows Extend goes across every
+# monitor that is left so no screen stays dark, and the switch still ends as failed,
+# needing the user to arrange and save again. Never returns.
+function Stop-Apply([string]$action, [string]$reason, [int]$rc) {
+    if ($OnApplyFailure -eq 'extend') {
+        $now = Get-Live
+        $gone = @($summary.monitors | Where-Object { $_.on -and -not ($now.ContainsKey($_.devicePath.ToLowerInvariant()) -and $now[$_.devicePath.ToLowerInvariant()].available) })
+        if ($gone.Count -gt 0) {
+            Write-Host ("  {0} not Available; falling back to Windows Extend" -f (@($gone | ForEach-Object { $_.label }) -join ', '))
+            $extendRc = [LayoutswapSwitch.Api]::Extend()
+            if ($extendRc -eq 0) {
+                Write-Failure $ArrangeAgain ("Windows Extend was applied instead: {0} (Windows error {1})" -f $reason, $rc) 0
+                Finish 2
+            }
+            Write-Failure $action ("{0} (Windows error {1}), and Windows Extend failed too, {2}" -f $reason, $rc, (Get-ApplyReason $extendRc)) $extendRc
+            Finish 1
+        }
+    }
+    Write-Failure $action $reason $rc
+    Finish 1
+}
+
 # Waits until every monitor in $monitors (device path in lower case to label) is
 # Available, up to the layout's Available wait. Prints the band's two lines once, then
 # a needs-you progress line with the seconds left: every second for the app, every ten
@@ -561,7 +598,7 @@ try {
     $missing = ''
     $rc = [LayoutswapSwitch.Api]::Apply($paths, $modes, [string[]]$arrangement.sourceAdapters, [string[]]$arrangement.targetAdapters, [string[]]$arrangement.modeAdapters, [ref]$missing, $true)
     if ($rc -eq -1) { Write-Failure 'save the layout again on this machine' ("the GPU it was captured on is not present: {0}" -f $missing) 0; Finish 1 }
-    if ($rc -ne 0)  { Write-Failure $ArrangeAgain ("Windows rejected the arrangement before applying it, {0}" -f (Get-ApplyReason $rc)) $rc; Finish 1 }
+    if ($rc -ne 0)  { Stop-Apply $ArrangeAgain ("Windows rejected the arrangement before applying it, {0}" -f (Get-ApplyReason $rc)) $rc }
     Write-Host "  validated"
     $already = Compare-Live $summary $live
     if ($ValidateOnly) {
@@ -570,7 +607,7 @@ try {
         Write-Step $ApplyStep 'skipped' 'Apply arrangement: already applied'
     } else {
         $rc = [LayoutswapSwitch.Api]::Apply($paths, $modes, [string[]]$arrangement.sourceAdapters, [string[]]$arrangement.targetAdapters, [string[]]$arrangement.modeAdapters, [ref]$missing, $false)
-        if ($rc -ne 0)  { Write-Failure ('try the switch again, and if it keeps failing ' + $ArrangeAgain) ("Windows could not apply the arrangement, {0}" -f (Get-ApplyReason $rc)) $rc; Finish 1 }
+        if ($rc -ne 0) { Stop-Apply ('try the switch again, and if it keeps failing ' + $ArrangeAgain) ("Windows could not apply the arrangement, {0}" -f (Get-ApplyReason $rc)) $rc }
         Write-Host "  applied"
         Start-Sleep -Seconds $SettleSeconds
         Write-Step $ApplyStep 'done' 'Apply arrangement'

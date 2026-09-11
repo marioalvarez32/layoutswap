@@ -38,19 +38,22 @@ describe('useLayoutEditor', () => {
     expect(result.addStep('after')).not.toBe(id);
   });
 
-  it('sets the drop wait and shows its rule out of bounds', () => {
+  it('patches the timings and the fallback and shows the rules out of bounds', () => {
     const { result } = withSetup(() => useLayoutEditor('layout-desk'));
-    result.setDropWait(9);
+    result.patch({ dropWaitSeconds: 9 });
     expect(result.edits.value.dropWaitSeconds).toBe(9);
     expect(result.dirty.value).toBe(true);
     expect(result.dropWaitRule.value).toBeNull();
-    result.setDropWait(61);
+    result.patch({ dropWaitSeconds: 61 });
     expect(result.dropWaitRule.value).toContain('between 0 and 60');
-    result.setAvailableWait(90);
+    result.patch({ availableWaitSeconds: 90 });
     expect(result.edits.value.availableWaitSeconds).toBe(90);
     expect(result.availableWaitRule.value).toBeNull();
-    result.setAvailableWait(0);
+    result.patch({ availableWaitSeconds: 0 });
     expect(result.availableWaitRule.value).toContain('between 1 and 600');
+    result.patch({ onApplyFailure: 'extend' });
+    expect(result.edits.value.onApplyFailure).toBe('extend');
+    expect(result.edits.value.dropWaitSeconds).toBe(61);
   });
 
   it('saves the draft through the command and picks up the stored layout', async () => {

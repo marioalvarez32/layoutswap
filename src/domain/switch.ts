@@ -220,6 +220,14 @@ export function failureBand(run: SwitchRun): FailureBand | null {
       warnings: result.explanation.warnings,
     };
   }
+  if (result.explanation.kind === 'extended') {
+    return {
+      action: 'Arrange the monitors in Settings > Display, then Save current layout again.',
+      detail: 'Windows Extend was applied instead, so every monitor shows the desktop but not in this layout\'s arrangement.',
+      offerDisplaySettings: true,
+      warnings: [],
+    };
+  }
   const action = sentence(result.nextAction || 'Open the log, then try the switch again');
   if (result.explanation.kind === 'absent' && result.explanation.monitors.length > 0) {
     return {

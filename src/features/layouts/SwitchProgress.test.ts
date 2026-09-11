@@ -201,6 +201,19 @@ describe('SwitchProgress', () => {
       expect(wrapper.findAll('.warnings li').map((w) => w.text())).toEqual(['Also noted: Side runs at 75 Hz instead of 60 Hz']);
     });
 
+    it('reads a landed Extend fallback as a failed switch with Settings > Display offered', () => {
+      const run = running();
+      run.steps = applyProgress(run.steps, { step: 2, of: 3, status: 'failed', text: 'Apply arrangement: arrange the monitors in Windows Settings > Display, then save the layout again; Windows Extend was applied instead: Windows could not apply the arrangement', parts: { name: 'Apply arrangement', action: 'arrange the monitors in Windows Settings > Display, then save the layout again', detail: 'Windows Extend was applied instead: Windows could not apply the arrangement' } });
+      run.result = { outcome: 'failed', step: 2, stepName: 'Apply arrangement', nextAction: 'arrange the monitors in Windows Settings > Display, then save the layout again', reason: 'Windows Extend was applied instead: Windows could not apply the arrangement', exitCode: 1, logPath: 'C:/x/switch.log', explanation: { kind: 'extended' } };
+      run.finishedAt = 15_000;
+      const wrapper = mountRun(run);
+      expect(wrapper.find('h2').text()).toBe('Could not switch to Desk');
+      expect(wrapper.find('.band.crit .action').text()).toBe('Arrange the monitors in Settings > Display, then Save current layout again.');
+      expect(wrapper.find('.band.crit .detail').text()).toContain('Windows Extend was applied instead');
+      expect(wrapper.find('button.open-settings').exists()).toBe(true);
+      expect(wrapper.findAll('.step').map((r) => r.find('.chip').text())).toEqual(['done', 'failed', 'waiting']);
+    });
+
     it('shows where the diagnostics went and holds the buttons while busy', () => {
       const run = checkFailed();
       run.notice = 'Diagnostics saved to C:/Users/x/Desktop/layoutswap-diagnostics-desk-20260910-183012.zip';

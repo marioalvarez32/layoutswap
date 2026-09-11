@@ -49,7 +49,7 @@ export type DdcCi = "answered" | "notAnswering" | "notRead";
  * What a fresh probe says about a failed step, so the result screen can name
  * monitors and positions instead of quoting the script.
  */
-export type FailureExplanation = { "kind": "absent", monitors: Array<string>, } | { "kind": "verify", failures: Array<VerifyFailure>, warnings: Array<string>, } | { "kind": "none" };
+export type FailureExplanation = { "kind": "absent", monitors: Array<string>, } | { "kind": "verify", failures: Array<VerifyFailure>, warnings: Array<string>, } | { "kind": "extended" } | { "kind": "none" };
 
 /**
  * One entry of the fixed table, as the step editor offers it.

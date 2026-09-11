@@ -1,6 +1,6 @@
 import { computed, ref, toValue, type MaybeRefOrGetter } from 'vue';
 import { errorMessage } from '@/domain/errors';
-import type { Step, StepSide } from '@/domain/generated/types';
+import type { LayoutEdits, Step, StepSide } from '@/domain/generated/types';
 import { addStep as appendStep, checkAvailableWait, checkDropWait, newWaitStep } from '@/domain/steps';
 import { useLayoutsStore } from './layouts.store';
 
@@ -17,8 +17,13 @@ export function useLayoutEditor(layoutId: MaybeRefOrGetter<string>) {
   const edits = computed(() => store.editsFor(toValue(layoutId)));
   const dirty = computed(() => store.isDraftDirty(toValue(layoutId)));
 
+  /** Changes some of the edits, leaving the rest as they are. */
+  function patch(changes: Partial<LayoutEdits>) {
+    store.edit(toValue(layoutId), { ...edits.value, ...changes });
+  }
+
   function setSteps(steps: Step[]) {
-    store.edit(toValue(layoutId), { ...edits.value, steps });
+    patch({ steps });
   }
 
   /** Adds a wait step on a side and returns its id, so the editor can expand it. */
@@ -28,18 +33,8 @@ export function useLayoutEditor(layoutId: MaybeRefOrGetter<string>) {
     return step.id;
   }
 
-  /** Sets the drop wait; the field's rule shows while out of bounds. */
-  function setDropWait(seconds: number) {
-    store.edit(toValue(layoutId), { ...edits.value, dropWaitSeconds: seconds });
-  }
-
+  /** The rules the timing fields show while out of bounds. */
   const dropWaitRule = computed(() => checkDropWait(edits.value.dropWaitSeconds));
-
-  /** Sets the Available wait; the field's rule shows while out of bounds. */
-  function setAvailableWait(seconds: number) {
-    store.edit(toValue(layoutId), { ...edits.value, availableWaitSeconds: seconds });
-  }
-
   const availableWaitRule = computed(() => checkAvailableWait(edits.value.availableWaitSeconds));
 
   /** Saves the draft; a refusal lands in `error` and the draft stays. */
@@ -63,7 +58,7 @@ export function useLayoutEditor(layoutId: MaybeRefOrGetter<string>) {
     store.discardDraft();
   }
 
-  return { edits, dirty, saving, error, setSteps, addStep, setDropWait, dropWaitRule, setAvailableWait, availableWaitRule, save, discard };
+  return { edits, dirty, saving, error, patch, setSteps, addStep, dropWaitRule, availableWaitRule, save, discard };
 }
 
 /** A step id: random, so two steps never collide, the one effect this file holds. */

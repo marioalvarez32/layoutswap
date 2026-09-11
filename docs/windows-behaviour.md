@@ -43,6 +43,10 @@ most timing defaults trace back to one of these.
   cannot be told apart, so it reads as not answering too.
 - **Windows rejects an arrangement with a floating monitor.** Every active monitor
   must share an edge with the group that contains the primary.
+- **`SDC_TOPOLOGY_EXTEND` ignores any paths and modes handed to it.** `SetDisplayConfig`
+  with that flag and `SDC_APPLY` re-topologises every connected monitor as an
+  extended desktop from Windows' own database, which is why it is the fallback when
+  a layout cannot apply with a monitor gone: it never needs the missing one.
 - **Apply returns numeric codes.** Error 87 usually means a monitor in the layout is
   not connected; 1610 means a bad configuration; 31 is a general failure.
 

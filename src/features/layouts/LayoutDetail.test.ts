@@ -118,6 +118,19 @@ describe('LayoutDetail', () => {
     expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ dropWaitSeconds: 8, availableWaitSeconds: 90, steps: [expect.objectContaining({ kind: 'sendInput', devicePath: 'path-acer' })] }));
   });
 
+  it('offers the fallback choice, default stop, and saves it', async () => {
+    const wrapper = mountDetail();
+    const radios = wrapper.findAll('.fallback input[type=radio]');
+    expect(radios.map((r) => r.attributes('value'))).toEqual(['stop', 'extend']);
+    expect((radios[0]!.element as HTMLInputElement).checked).toBe(true);
+    await radios[1]!.setValue(true);
+    await flushPromises();
+    expect(wrapper.find('.actions button.save').exists()).toBe(true);
+    await wrapper.find('.actions button.save').trigger('click');
+    await flushPromises();
+    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ onApplyFailure: 'extend' }));
+  });
+
   it('discards the draft back to the layout', async () => {
     const wrapper = mountDetail();
     await wrapper.find('.timeline .add-after').trigger('click');

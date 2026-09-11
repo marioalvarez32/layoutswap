@@ -32,7 +32,9 @@
 //! `<step name>: <next action>; <reason>`, with ` (Windows error N)` appended when a
 //! code exists; [`super::progress::ProgressLine::failure_parts`] splits it. The
 //! check step's reason is `Absent: <label>, <label>`, so the app can name the
-//! monitors even when its own probe cannot. Every other line is log.
+//! monitors even when its own probe cannot; the apply step's reason starts with
+//! `Windows Extend was applied instead` when the fallback landed. Every other line is
+//! log.
 //!
 //! # Exit codes
 //!
@@ -50,11 +52,12 @@ use std::collections::BTreeMap;
 use serde::Serialize;
 
 use crate::config::layouts::{
-    monitor_labels, step_labeller, step_sentence, Layout, Step, StepKind, StepSide, WaitRule,
+    monitor_labels, step_labeller, step_sentence, ApplyFailure, Layout, Step, StepKind, StepSide,
+    WaitRule,
 };
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 5;
+pub const TEMPLATE_VERSION: u32 = 6;
 
 /// The fixed rows of every switch, by name.
 pub const CHECK_ROW: &str = "Check monitors";
@@ -121,6 +124,8 @@ fn numbered_steps(layout: &Layout) -> Vec<(u32, &Step)> {
 /// The prefix of the check step's failure reason, followed by the labels joined by
 /// a comma and a space.
 pub const ABSENT_REASON_PREFIX: &str = "Absent: ";
+/// The prefix of the apply step's failure reason when the Extend fallback landed.
+pub const EXTENDED_REASON_PREFIX: &str = "Windows Extend was applied instead";
 
 /// Rendered script text, ready to be written to disk.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,6 +218,13 @@ pub fn render_switch(
         .replace(
             "{{AVAILABLE_WAIT_SECONDS}}",
             &layout.available_wait_seconds.to_string(),
+        )
+        .replace(
+            "{{ON_APPLY_FAILURE}}",
+            match layout.on_apply_failure {
+                ApplyFailure::Stop => "stop",
+                ApplyFailure::Extend => "extend",
+            },
         )
         .replace("{{STEPS_BEFORE_PS}}", &before_blocks.join("\n"))
         .replace("{{STEPS_AFTER_PS}}", &after_blocks.join("\n"))
@@ -317,8 +329,8 @@ struct EmbeddedMonitor<'a> {
 mod tests {
     use super::*;
     use crate::config::layouts::{
-        summarise, ApplyFailure, Step, StepKind, Summary, WaitRule,
-        DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
+        summarise, Step, StepKind, Summary, WaitRule, DEFAULT_AVAILABLE_WAIT_SECONDS,
+        DEFAULT_DROP_WAIT_SECONDS,
     };
     use crate::hardware::{parse, ArrangementBlob, Inventory, MonitorState};
     use crate::script::progress::{parse_progress_line, StepStatus};
@@ -451,6 +463,7 @@ mod tests {
         // The desk direction: after the apply, send the Acer back to HDMI 1 with no wait,
         // and a step on a monitor the layout never saw.
         let mut desk_return = layout("Desk return", &five);
+        desk_return.on_apply_failure = ApplyFailure::Extend;
         desk_return.steps = vec![
             send("send-back", StepSide::After, &path_of(&five, "ACR0EC4"), 0x11, WaitRule::None),
             send("send-gone", StepSide::After, "gone", 0x1E, WaitRule::Available),
@@ -566,6 +579,15 @@ mod tests {
         let verify_at = text.find("Write-Step $VerifyStep 'running'").unwrap();
         assert!(apply_at < send_at && send_at < verify_at);
         assert!(text.contains("-Label 'unknown monitor' -Code 30 -InputName 'Input 0x1E' -Wait 'available' -Side 'after'"), "{text}");
+        assert!(text.contains("$OnApplyFailure       = 'extend'"), "{text}");
+        assert!(text.contains("SDC_TOPOLOGY_EXTEND"));
+        assert!(text.contains(&format!("\"{EXTENDED_REASON_PREFIX}: {{0}} (Windows error {{1}})\" -f $reason, $rc")), "{text}");
+        assert!(text.contains("function Stop-Apply"));
+        let validate_at = text.find("Stop-Apply $ArrangeAgain").expect("the validate failure goes through the fallback");
+        let apply_at = text.find("Stop-Apply ('try the switch again").expect("the apply failure goes through the fallback");
+        assert!(validate_at < apply_at);
+        let (_, console, aliases) = fixtures().remove(4);
+        assert!(render(&console, &aliases).contains("$OnApplyFailure       = 'stop'"));
     }
 
     #[test]

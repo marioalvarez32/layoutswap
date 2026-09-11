@@ -20,7 +20,7 @@ use crate::error::AppError;
 use crate::hardware::MonitorState;
 use crate::script::lock::{self, LOCK_FILE_NAME};
 use crate::script::progress::{parse_progress_line, ProgressLine, StepStatus};
-use crate::script::render::{self, ABSENT_REASON_PREFIX, CHECK_STEP};
+use crate::script::render::{self, ABSENT_REASON_PREFIX, CHECK_STEP, EXTENDED_REASON_PREFIX};
 use crate::script::run::CancelHandle;
 
 /// What the app tells the webview while a switch runs.
@@ -88,6 +88,9 @@ pub enum FailureExplanation {
         failures: Vec<VerifyFailure>,
         warnings: Vec<String>,
     },
+    /// The apply failed and the Extend fallback landed: every monitor shows the desktop,
+    /// but not in this layout's arrangement.
+    Extended,
     /// Nothing beyond the script's own line: another step failed.
     None,
 }
@@ -332,6 +335,10 @@ impl App {
     ) -> FailureExplanation {
         let label = layouts::labeller(&config.aliases, &layout.summary.monitors);
         let verify_step = timeline.verify();
+        let reason = line.parts.as_ref().map(|p| p.detail.as_str()).unwrap_or("");
+        if line.step == timeline.apply && reason.starts_with(EXTENDED_REASON_PREFIX) {
+            return FailureExplanation::Extended;
+        }
         match line.step {
             CHECK_STEP => {
                 let from_probe: Vec<String> = self
@@ -942,6 +949,43 @@ mod tests {
         app.cancel_switch().unwrap();
         let (result, _) = run.join().unwrap();
         assert_eq!(result.unwrap(), SwitchResult::Cancelled { sent: vec![] });
+    }
+
+    #[test]
+    fn a_fallback_that_landed_resolves_failed_as_extended_and_a_plain_apply_failure_does_not() {
+        let extended = &[
+            "[1/3] done Check monitors",
+            "[2/3] running Apply arrangement",
+            "  Side not Available; falling back to Windows Extend",
+            "[2/3] failed Apply arrangement: arrange the monitors in Windows Settings > Display, then save the layout again; Windows Extend was applied instead: Windows could not apply the arrangement, invalid parameter, a monitor in the layout is probably not connected (Windows error 87)",
+            "Exit code 2",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(extended, 2));
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed {
+                step,
+                next_action,
+                explanation,
+                ..
+            } => {
+                assert_eq!(step, Some(2));
+                assert!(next_action.starts_with("arrange the monitors"));
+                assert_eq!(explanation, FailureExplanation::Extended);
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+
+        let plain = &[
+            "[1/3] done Check monitors",
+            "[2/3] running Apply arrangement",
+            "[2/3] failed Apply arrangement: try the switch again, and if it keeps failing arrange the monitors in Windows Settings > Display, then save the layout again; Windows could not apply the arrangement, bad configuration (Windows error 1610)",
+            "Exit code 1",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(plain, 1));
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed { explanation, .. } => assert_eq!(explanation, FailureExplanation::None),
+            other => panic!("expected Failed, got {other:?}"),
+        }
     }
 
     #[test]

@@ -7,8 +7,8 @@ pub mod steps;
 pub mod verify;
 
 pub use steps::{
-    step_sentence, validate_edits, ApplyFailure, LayoutEdits, Step, StepKind, StepSide,
-    DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
+    step_labeller, step_sentence, validate_edits, ApplyFailure, LayoutEdits, Step, StepKind,
+    StepSide, WaitRule, DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
 };
 
 use std::collections::BTreeMap;

@@ -15,6 +15,7 @@ use crate::app::{App, SwitchEvent, SwitchResult};
 use crate::config::layouts::{CaptureOutcome, Layout, LayoutEdits, ScriptStatus};
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
+use crate::hardware::input_source::InputSource;
 use crate::hardware::Inventory;
 
 /// Managed state shared by every command.
@@ -56,6 +57,12 @@ pub async fn save_layout(
 ) -> Result<Layout, AppError> {
     let app = Arc::clone(&state.app);
     blocking(move || app.save_layout(&layout_id, edits)).await
+}
+
+/// The fixed input source table the step editor offers.
+#[tauri::command]
+pub fn input_sources(state: State<'_, AppState>) -> Result<Vec<InputSource>, AppError> {
+    Ok(state.app.input_sources())
 }
 
 #[tauri::command]

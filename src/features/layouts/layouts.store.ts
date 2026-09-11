@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { errorMessage } from '@/domain/errors';
-import type { CaptureOutcome, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchResult } from '@/domain/generated/types';
+import type { CaptureOutcome, InputSource, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchResult } from '@/domain/generated/types';
 import { toListItem, upsertLayout } from '@/domain/layouts';
 import { DEFAULT_EDITS, editsOf, isDirty } from '@/domain/steps';
 import { appendLog, applyProgress, newSwitchRun, type SwitchRun } from '@/domain/switch';
@@ -10,6 +10,7 @@ import {
   captureLayout,
   exportConfig as exportConfigFile,
   importConfig as importConfigFile,
+  inputSources as loadInputSources,
   loadConfig,
   onSwitchEvent,
   openDisplaySettings as openDisplaySettingsPage,
@@ -38,6 +39,8 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const probeError = ref<string | null>(null);
   /** The switch on screen: running, or finished until Back dismisses it. */
   const switchRun = ref<SwitchRun | null>(null);
+  /** The fixed input source table, for the step editor. */
+  const inputSources = ref<InputSource[]>([]);
   /** The layout editor's unsaved edits, for one layout at a time. */
   const draft = ref<{ layoutId: string; edits: LayoutEdits } | null>(null);
   /** An action on the result screen is in flight, such as the save dialog. */
@@ -74,6 +77,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
         selectedId.value = config.layouts[0]?.id ?? null;
       }
       await refreshScriptStates();
+      inputSources.value = await loadInputSources();
     } catch (cause) {
       loadError.value = errorMessage(cause);
     }
@@ -323,6 +327,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
     selectedId,
     inventory,
     scriptStatuses,
+    inputSources,
     probing,
     loadError,
     probeError,

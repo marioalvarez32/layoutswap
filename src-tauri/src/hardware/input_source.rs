@@ -1,6 +1,29 @@
 //! Input sources as VCP code 0x60 values monitors agree on (MCCS 2.2), and their names.
 //! A code outside the table is still usable: it reads as "Input 0x1E".
 
+use serde::Serialize;
+use ts_rs::TS;
+
+/// One entry of the fixed table, as the step editor offers it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export, export_to = "types.ts")]
+pub struct InputSource {
+    pub code: u32,
+    pub name: String,
+}
+
+/// The fixed table for the editor, in order.
+pub fn table() -> Vec<InputSource> {
+    INPUT_SOURCES
+        .iter()
+        .map(|(code, name)| InputSource {
+            code: *code,
+            name: name.to_string(),
+        })
+        .collect()
+}
+
 /// The fixed table, in the order the step editor offers it.
 pub const INPUT_SOURCES: [(u32, &str); 8] = [
     (0x01, "VGA"),
@@ -33,6 +56,14 @@ mod tests {
         }
         assert_eq!(name(0x11), "HDMI 1");
         assert_eq!(name(0x1B), "USB-C");
+    }
+
+    #[test]
+    fn the_table_lists_every_entry_in_order() {
+        let table = table();
+        assert_eq!(table.len(), INPUT_SOURCES.len());
+        assert_eq!(table[0].name, "VGA");
+        assert_eq!(table[5], InputSource { code: 0x11, name: "HDMI 1".into() });
     }
 
     #[test]

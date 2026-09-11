@@ -1,22 +1,42 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import type { Step } from '@/domain/generated/types';
+import type { InputSource, Step } from '@/domain/generated/types';
+import { stepLabeller } from '@/domain/steps';
+import { layoutFixture } from '@/test/fixtures';
 import StepsEditor from './StepsEditor.vue';
+
+const TABLE: InputSource[] = [
+  { code: 0x0f, name: 'DisplayPort 1' },
+  { code: 0x11, name: 'HDMI 1' },
+];
 
 function wait(id: string, side: Step['side'], seconds: number): Step {
   return { id, side, kind: 'wait', seconds };
 }
 
-const STEPS: Step[] = [wait('a', 'before', 3), wait('b', 'before', 5), wait('c', 'after', 1)];
+function send(id: string, side: Step['side'], devicePath: string, inputSource: number, wait: 'none' | 'drop' | 'available' = 'none'): Step {
+  return { id, side, kind: 'sendInput', devicePath, inputSource, wait };
+}
 
-function lastChange(wrapper: ReturnType<typeof mount>): Step[] {
+const STEPS: Step[] = [wait('a', 'before', 3), wait('b', 'before', 5), wait('c', 'after', 1)];
+const layout = layoutFixture();
+const labelOf = stepLabeller({ 'path-ultrawide': 'Ultrawide' }, layout.summary.monitors);
+const monitors = layout.summary.monitors.map((m) => ({ devicePath: m.devicePath, label: labelOf(m.devicePath), currentInput: m.devicePath === 'path-acer' ? 0x11 : null }));
+
+function mountEditor(steps: Step[]) {
+  return mount(StepsEditor, {
+    props: { steps, layout, monitors, inputSources: TABLE, labelOf, dropWaitSeconds: 5, availableWaitSeconds: 120 },
+  });
+}
+
+function lastChange(wrapper: ReturnType<typeof mountEditor>): Step[] {
   const events = wrapper.emitted('change') as Step[][][];
   return events[events.length - 1]![0]!;
 }
 
 describe('StepsEditor', () => {
   it('shows the timeline: fixed rows with the steps as sentences around the apply', () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     const rows = wrapper.findAll('.timeline > li').map((li) => li.text().trim());
     expect(rows).toEqual([
       'Check monitors',
@@ -32,21 +52,21 @@ describe('StepsEditor', () => {
   });
 
   it('keeps the fixed rows and the two Add buttons with no steps', () => {
-    const wrapper = mount(StepsEditor, { props: { steps: [] } });
+    const wrapper = mountEditor([]);
     expect(wrapper.findAll('.timeline > li').map((li) => li.text().trim())).toEqual([
       'Check monitors', 'Add step before', 'Apply arrangement', 'Add step after', 'Verify',
     ]);
   });
 
   it('asks for a step on the side of the button', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     await wrapper.find('.add-after').trigger('click');
     await wrapper.find('.add-before').trigger('click');
     expect(wrapper.emitted('add')).toEqual([['after'], ['before']]);
   });
 
   it('expands a row on click to its controls and edits the seconds', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     await wrapper.findAll('.sentence')[0]!.trigger('click');
     expect(wrapper.findAll('.sentence')[0]!.attributes('aria-expanded')).toBe('true');
     const seconds = wrapper.find('input.seconds');
@@ -58,21 +78,68 @@ describe('StepsEditor', () => {
   });
 
   it('expands a row the caller names, as after an add', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     (wrapper.vm as unknown as { expand: (id: string) => void }).expand('c');
     await wrapper.vm.$nextTick();
     expect(wrapper.findAll('.step')[2]!.classes()).toContain('expanded');
   });
 
-  it('shows the rule when the seconds leave their bounds', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: [wait('a', 'before', 0)] } });
+  it('turns a wait step into a send step and back through the kind select', async () => {
+    const wrapper = mountEditor(STEPS);
+    await wrapper.findAll('.sentence')[0]!.trigger('click');
+    await wrapper.find('select.kind').setValue('sendInput');
+    expect(lastChange(wrapper)[0]).toEqual(send('a', 'before', 'path-msi-2', 0x0f));
+    await wrapper.setProps({ steps: lastChange(wrapper) });
+    expect(wrapper.findAll('.sentence')[0]!.text()).toBe('Send DisplayPort 1 to MSI MP165 E6 · USB-C DisplayPort 2');
+    await wrapper.find('select.kind').setValue('wait');
+    expect(lastChange(wrapper)[0]).toEqual(wait('a', 'before', 3));
+  });
+
+  it('edits a send step: input with the current one marked, monitor, wait rule with its timeout', async () => {
+    const wrapper = mountEditor([send('s', 'before', 'path-acer', 0x0f)]);
     await wrapper.find('.sentence').trigger('click');
-    expect(wrapper.find('.rule').text()).toContain('between 1 and 600');
-    expect(wrapper.find('input.seconds').attributes('aria-invalid')).toBe('true');
+    const inputOptions = wrapper.findAll('select.input option').map((o) => o.text());
+    expect(inputOptions).toEqual(['DisplayPort 1', 'HDMI 1 (now)', 'Other code']);
+    await wrapper.find('select.input').setValue('17');
+    expect(lastChange(wrapper)[0]).toMatchObject({ inputSource: 0x11 });
+    await wrapper.find('select.monitor').setValue('path-ultrawide');
+    expect(lastChange(wrapper)[0]).toMatchObject({ devicePath: 'path-ultrawide' });
+    await wrapper.find('select.wait').setValue('drop');
+    expect(lastChange(wrapper)[0]).toMatchObject({ wait: 'drop' });
+    await wrapper.setProps({ steps: [send('s', 'before', 'path-ultrawide', 0x11, 'drop')] });
+    expect(wrapper.find('.sentence').text()).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide drops');
+    expect(wrapper.find('select.wait ~ .faint').text()).toBe('up to 5 s');
+  });
+
+  it('takes another code as hex and refuses one a monitor cannot hold', async () => {
+    const wrapper = mountEditor([send('s', 'before', 'path-acer', 0x1e)]);
+    await wrapper.find('.sentence').trigger('click');
+    expect((wrapper.find('select.input').element as HTMLSelectElement).value).toBe('other');
+    const code = wrapper.find('input.other-code');
+    expect((code.element as HTMLInputElement).value).toBe('0x1E');
+    await code.setValue('0x1B');
+    expect(lastChange(wrapper)[0]).toMatchObject({ inputSource: 0x1b });
+    await code.setValue('0x100');
+    expect(wrapper.find('.rule').text()).toContain('0x01 and 0xFF');
+  });
+
+  it('warns under a send step whose monitor is off after the apply, expanded or not', async () => {
+    const wrapper = mountEditor([send('s', 'after', 'path-ultrawide', 0x11)]);
+    expect(wrapper.find('.note').text()).toBe('Ultrawide is off after the apply, so this step will be skipped.');
+    await wrapper.find('.sentence').trigger('click');
+    expect(wrapper.find('.controls .note').text()).toContain('off after the apply');
+  });
+
+  it('shows an unknown monitor as such and keeps it selectable', async () => {
+    const wrapper = mountEditor([send('s', 'before', 'gone', 0x11)]);
+    expect(wrapper.find('.sentence').text()).toBe('Send HDMI 1 to unknown monitor');
+    expect(wrapper.find('.note').text()).toContain('not in the layout any more');
+    await wrapper.find('.sentence').trigger('click');
+    expect((wrapper.find('select.monitor').element as HTMLSelectElement).value).toBe('gone');
   });
 
   it('moves a step within its side and disables the move at the edge', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     await wrapper.findAll('.sentence')[1]!.trigger('click');
     expect(wrapper.find('.move-up').attributes('disabled')).toBeUndefined();
     expect(wrapper.find('.move-down').attributes('disabled')).toBeDefined();
@@ -81,7 +148,7 @@ describe('StepsEditor', () => {
   });
 
   it('removes a step and closes its controls', async () => {
-    const wrapper = mount(StepsEditor, { props: { steps: STEPS } });
+    const wrapper = mountEditor(STEPS);
     await wrapper.findAll('.sentence')[2]!.trigger('click');
     await wrapper.find('.remove').trigger('click');
     const steps = lastChange(wrapper);

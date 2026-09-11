@@ -42,6 +42,11 @@ A monitor stopping being Available to Windows after its input source changed. So
 monitors never drop; the apply is what turns them off.
 _Avoid_: disconnect, go dark, detach
 
+**Unknown monitor**:
+The monitor a step names that the layout's summary does not hold, after a re-capture
+or an import from another machine. The step stays and is skipped.
+_Avoid_: missing monitor, orphan, dangling
+
 **Needs you**:
 A running row that is waiting for a physical action, such as pressing a monitor's
 input button, and says so with the seconds left.

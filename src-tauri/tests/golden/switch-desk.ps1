@@ -39,6 +39,8 @@ $MonitorsOn    = @(
 $MonitorsOff   = @(
     'VG34VQEL1A'   # \\?\DISPLAY#AUS343F#5&1a2b3c4d&0&UID8725#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}
 )
+$DropWaitSeconds      = 5      # how long a send step waits for its monitor to drop
+$AvailableWaitSeconds = 120    # how long a wait for a monitor to be Available lasts
 
 #-----------------------------------------------------------------------------
 # Embedded layout data (written by layoutswap at capture; never edited)
@@ -151,7 +153,8 @@ try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding $false } c
 $ScriptDir     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $LogPath       = Join-Path $ScriptDir 'switch.log'
 $LockPath      = Join-Path $AppRoot 'switch.lock'
-$SettleSeconds = 2   # Windows finishes an apply asynchronously; verify waits this long first
+$SettleSeconds = 2   # Windows finishes an apply asynchronously; the after-steps and verify wait this long first
+$DdcTimeoutMs  = 3000   # a send step's DDC-CI command gets this long to answer
 $StepCount     = 3
 $ApplyStep     = 2
 $VerifyStep    = 3
@@ -343,16 +346,74 @@ namespace LayoutswapSwitch {
 
         public static void MakeAware() { try { SetProcessDpiAwarenessContext(new IntPtr(-4)); } catch { } }
 
-        public static uint ForGdi(string gdi) {
+        // The HMONITOR Windows shows under a GDI name, or zero when not found.
+        public static IntPtr FindByGdi(string gdi) {
             IntPtr found = IntPtr.Zero;
             MonitorEnumProc cb = (IntPtr hMon, IntPtr hdc, ref RECT r, IntPtr d) => {
                 var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf(typeof(MONITORINFOEX)) };
                 if (GetMonitorInfo(hMon, ref mi) && string.Equals(mi.szDevice.TrimEnd('\0'), gdi, StringComparison.OrdinalIgnoreCase)) found = hMon;
                 return true; };
             EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, cb, IntPtr.Zero);
+            return found;
+        }
+
+        public static uint ForGdi(string gdi) {
+            IntPtr found = FindByGdi(gdi);
             if (found == IntPtr.Zero) return 0;
             uint x, y;
             try { return GetDpiForMonitor(found, 0, out x, out y) == 0 ? x : 0; } catch { return 0; }
+        }
+    }
+
+    // Sending an input source over DDC-CI (VCP code 0x60) to the monitor under a GDI
+    // name, through its physical monitor handle. Only an active monitor has a GDI
+    // name, which is why the console direction sends before the apply and the desk
+    // direction after it (docs/windows-behaviour.md).
+    public static class Ddc {
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        struct PHYSICAL_MONITOR { public IntPtr h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string desc; }
+        [DllImport("dxva2.dll", SetLastError = true)] static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr hMon, out uint n);
+        [DllImport("dxva2.dll", SetLastError = true)] static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr hMon, uint n, [Out] PHYSICAL_MONITOR[] arr);
+        [DllImport("dxva2.dll", SetLastError = true)] static extern bool DestroyPhysicalMonitors(uint n, PHYSICAL_MONITOR[] arr);
+        [DllImport("dxva2.dll", SetLastError = true)] static extern bool GetVCPFeatureAndVCPFeatureReply(IntPtr h, byte code, out uint type, out uint current, out uint max);
+        [DllImport("dxva2.dll", SetLastError = true)] static extern bool SetVCPFeature(IntPtr h, byte code, uint value);
+        const byte VCP_INPUT_SOURCE = 0x60;
+
+        public class Outcome { public string Error = ""; public uint Before; public bool Sent; }
+
+        // Reads the input the monitor shows, then sends the new one unless it is already
+        // there, so re-running a script is a no-op with a log line. Error is empty on
+        // success, else what went wrong.
+        static Outcome SetInputNow(string gdi, uint value) {
+            var o = new Outcome();
+            IntPtr hMon = Dpi.FindByGdi(gdi);
+            if (hMon == IntPtr.Zero) { o.Error = "monitor " + gdi + " not found"; return o; }
+            uint n;
+            if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMon, out n) || n == 0) { o.Error = "no physical monitor handle"; return o; }
+            if (n != 1) { o.Error = "several physical monitors share " + gdi + " (clone mode)"; return o; }
+            var arr = new PHYSICAL_MONITOR[n];
+            if (!GetPhysicalMonitorsFromHMONITOR(hMon, n, arr)) { o.Error = "GetPhysicalMonitorsFromHMONITOR failed, Win32 error " + Marshal.GetLastWin32Error(); return o; }
+            try {
+                uint t, cur, max;
+                if (GetVCPFeatureAndVCPFeatureReply(arr[0].h, VCP_INPUT_SOURCE, out t, out cur, out max)) {
+                    uint low = cur & 0xFF, high = (cur >> 8) & 0xFF;
+                    o.Before = low != 0 ? low : high;
+                    if (o.Before == value) return o;
+                }
+                if (!SetVCPFeature(arr[0].h, VCP_INPUT_SOURCE, value)) { o.Error = "SetVCPFeature failed, Win32 error " + Marshal.GetLastWin32Error(); return o; }
+                o.Sent = true;
+                return o;
+            } finally { DestroyPhysicalMonitors(n, arr); }
+        }
+
+        // The send on its own thread with a timeout: a monitor that never answers must
+        // not hold the switch where nothing can cancel it.
+        public static Outcome SetInput(string gdi, uint value, int timeoutMs) {
+            var task = System.Threading.Tasks.Task.Factory.StartNew(() => SetInputNow(gdi, value));
+            try { if (task.Wait(timeoutMs)) return task.Result; } catch { }
+            var late = new Outcome();
+            late.Error = "no answer over DDC-CI within " + timeoutMs + " ms";
+            return late;
         }
     }
 }
@@ -428,6 +489,61 @@ function Get-ApplyReason([int]$rc) {
 }
 
 $ArrangeAgain = 'arrange the monitors in Windows Settings > Display, then save the layout again'
+
+# Whether the monitor with this device path is Available right now: one display-config
+# query, cheap enough to poll.
+function Test-Available([string]$key) {
+    foreach ($r in (Get-Rows $false)) {
+        if ($r.Monitor -and $r.Monitor.ToLowerInvariant() -eq $key -and $r.Available) { return $true }
+    }
+    return $false
+}
+
+# A send step: send the input source to the monitor with this device path, then
+# follow the wait rule. The monitor must be Active, its GDI name being how the
+# physical monitor is found; otherwise the step is skipped with a log line. A command
+# that fails stops the switch: the user picks the input on the monitor instead.
+function Send-InputSource {
+    param([int]$Row, [string]$Sentence, [string]$DevicePath, [string]$Label, [int]$Code, [string]$InputName, [string]$Wait)
+    $row = $Row; $sentence = $Sentence; $label = $Label; $inputName = $InputName; $wait = $Wait
+    if ($ValidateOnly) { Write-Step $row 'skipped' ("{0}: validated only" -f $sentence); return }
+    Write-Step $row 'running' $sentence
+    $key = $DevicePath.ToLowerInvariant()
+    $live = Get-Live
+    if (-not ($live.ContainsKey($key) -and $live[$key].active -and $live[$key].gdi)) {
+        Write-Step $row 'skipped' ("{0}: {1} is not Active" -f $sentence, $label)
+        return
+    }
+    $outcome = [LayoutswapSwitch.Ddc]::SetInput($live[$key].gdi, [uint32]$Code, $DdcTimeoutMs)
+    if ($outcome.Error) {
+        Write-Failure ("press the input button on {0} to pick {1}, then switch again" -f $label, $inputName) ("could not send the input source ({0})" -f $outcome.Error) 0
+        Finish 2
+    }
+    if (-not $outcome.Sent) {
+        Write-Host ("  {0} already shows {1}" -f $label, $inputName)
+        Write-Step $row 'done' $sentence
+        return
+    }
+    Write-Host ("  {0}: {1} sent (was 0x{2:X2})" -f $label, $inputName, $outcome.Before)
+    switch ($wait) {
+        'drop' {
+            $deadline = (Get-Date).AddSeconds($DropWaitSeconds)
+            while ((Get-Date) -lt $deadline -and (Test-Available $key)) { Start-Sleep -Milliseconds 500 }
+            if (Test-Available $key) { Write-Host ("  {0} still Available after {1} s; the apply turns it off" -f $label, $DropWaitSeconds) }
+            else { Write-Host ("  {0} dropped" -f $label) }
+        }
+        'available' {
+            $deadline = (Get-Date).AddSeconds($AvailableWaitSeconds)
+            while ((Get-Date) -lt $deadline -and -not (Test-Available $key)) { Start-Sleep -Seconds 1 }
+            if (-not (Test-Available $key)) {
+                Write-Failure ("press the input button on {0}, or turn the other device off, then switch again" -f $label) ("{0} not Available after {1} s" -f $label, $AvailableWaitSeconds) 0
+                Finish 2
+            }
+            Write-Host ("  {0} is Available" -f $label)
+        }
+    }
+    Write-Step $row 'done' $sentence
+}
 
 #=============================================================================
 Write-Host ""

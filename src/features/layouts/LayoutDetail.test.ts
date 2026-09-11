@@ -89,6 +89,31 @@ describe('LayoutDetail', () => {
     expect(wrapper.find('.blocked').exists()).toBe(false);
   });
 
+  it('offers the send step with the layout monitors and the input table, and the drop wait under Advanced', async () => {
+    const store = useLayoutsStore();
+    store.inputSources = [{ code: 0x0f, name: 'DisplayPort 1' }, { code: 0x11, name: 'HDMI 1' }];
+    const wrapper = mountDetail();
+    await wrapper.find('.timeline .add-before').trigger('click');
+    await flushPromises();
+    await wrapper.find('select.kind').setValue('sendInput');
+    await flushPromises();
+    expect(wrapper.find('.timeline .sentence').text()).toBe('Send DisplayPort 1 to MSI MP165 E6 · USB-C DisplayPort 2');
+    expect(wrapper.findAll('select.monitor option').map((o) => o.text())).toContain('KG241Y X1');
+    expect(wrapper.findAll('select.input option').map((o) => o.text())).toEqual(['DisplayPort 1', 'HDMI 1', 'Other code']);
+    await wrapper.find('select.monitor').setValue('path-acer');
+    await flushPromises();
+    expect(wrapper.findAll('select.input option').map((o) => o.text())).toEqual(['DisplayPort 1', 'HDMI 1 (now)', 'Other code']);
+
+    const dropWait = wrapper.find('input.drop-wait');
+    expect((dropWait.element as HTMLInputElement).value).toBe('5');
+    await dropWait.setValue('8');
+    await flushPromises();
+    expect(wrapper.find('.advanced summary').text()).toBe('Advanced: drop wait 8 s');
+    await wrapper.find('.actions button.save').trigger('click');
+    await flushPromises();
+    expect(saveLayout).toHaveBeenCalledWith('layout-desk', expect.objectContaining({ dropWaitSeconds: 8, steps: [expect.objectContaining({ kind: 'sendInput', devicePath: 'path-acer' })] }));
+  });
+
   it('discards the draft back to the layout', async () => {
     const wrapper = mountDetail();
     await wrapper.find('.timeline .add-after').trigger('click');

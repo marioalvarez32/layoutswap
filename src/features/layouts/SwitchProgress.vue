@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import { canCancel, failureBand, stepTone, switchHeadline, type SwitchRun } from '@/domain/switch';
+import { canCancel, cancelledNote, failureBand, stepTone, switchHeadline, type SwitchRun } from '@/domain/switch';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import { useElapsed } from './useElapsed';
@@ -24,6 +24,7 @@ const { elapsedMs } = useElapsed(() => props.run.startedAt, running);
 
 const headline = computed(() => switchHeadline(props.run, elapsedMs.value));
 const failure = computed(() => failureBand(props.run));
+const cancelled = computed(() => cancelledNote(props.run));
 const cancelAllowed = computed(() => canCancel(props.run));
 const steps = computed(() => props.run.steps.map((s) => ({ ...s, tone: stepTone(s.status) })));
 const logText = computed(() => props.run.log.join('\n'));
@@ -62,6 +63,9 @@ const logText = computed(() => props.run.log.join('\n'));
           </Button>
         </div>
       </div>
+      <p v-if="cancelled" class="band warn cancelled-note">
+        {{ cancelled }}
+      </p>
       <p v-if="run.error" class="band warn" role="alert">
         {{ run.error }}
       </p>

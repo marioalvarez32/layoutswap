@@ -66,7 +66,12 @@ pub enum SwitchResult {
         log_path: String,
         explanation: FailureExplanation,
     },
-    Cancelled,
+    /// The user cancelled. `sent` names the send rows that had already run, or were
+    /// running when the script was killed, since their monitor may be showing another
+    /// device now.
+    Cancelled {
+        sent: Vec<String>,
+    },
 }
 
 /// What a fresh probe says about a failed step, so the result screen can name
@@ -148,7 +153,7 @@ impl App {
             running
         };
         let started = Instant::now();
-        let timeline = render::timeline(layout);
+        let timeline = render::timeline(layout, &config.aliases);
         self.log(format!("switch {}: started", layout.name));
         on_event(SwitchEvent::Started {
             layout_id: layout.id.clone(),
@@ -158,6 +163,7 @@ impl App {
 
         let mut last_failed: Option<ProgressLine> = None;
         let mut last_log = String::new();
+        let mut sent: Vec<String> = Vec::new();
         while let Some(text) = running.next_line() {
             match parse_progress_line(&text) {
                 Some(line) => {
@@ -168,6 +174,14 @@ impl App {
                     }
                     if line.status == StepStatus::Failed {
                         last_failed = Some(line.clone());
+                    }
+                    if timeline.sends.contains(&line.step)
+                        && matches!(line.status, StepStatus::Running | StepStatus::Done)
+                    {
+                        let row = timeline.rows[line.step as usize - 1].clone();
+                        if !sent.contains(&row) {
+                            sent.push(row);
+                        }
                     }
                     on_event(SwitchEvent::Progress { line });
                 }
@@ -199,8 +213,16 @@ impl App {
             return Ok(SwitchResult::Applied { duration_ms });
         }
         if cancelled {
-            self.log(format!("switch {}: cancelled", layout.name));
-            return Ok(SwitchResult::Cancelled);
+            self.log(format!(
+                "switch {}: cancelled{}",
+                layout.name,
+                if sent.is_empty() {
+                    String::new()
+                } else {
+                    format!(" after: {}", sent.join("; "))
+                }
+            ));
+            return Ok(SwitchResult::Cancelled { sent });
         }
         let result = self.failure(layout, &config, &timeline, exit_code, last_failed, &last_log);
         if let SwitchResult::Failed {
@@ -713,6 +735,111 @@ mod tests {
         );
     }
 
+    /// A layout whose one step sends the Acer to HDMI 1 before the apply and waits for it to drop.
+    fn send_edits() -> crate::config::layouts::LayoutEdits {
+        use crate::config::layouts::{ApplyFailure, LayoutEdits, Step, StepKind, StepSide, WaitRule};
+        let acer = crate::hardware::parse(FIVE)
+            .unwrap()
+            .monitors
+            .iter()
+            .find(|m| m.device_path.contains("ACR0EC4"))
+            .unwrap()
+            .device_path
+            .clone();
+        LayoutEdits {
+            steps: vec![Step {
+                id: "s".into(),
+                side: StepSide::Before,
+                kind: StepKind::SendInput {
+                    device_path: acer,
+                    input_source: 0x11,
+                    wait: WaitRule::Drop,
+                },
+            }],
+            drop_wait_seconds: 5,
+            available_wait_seconds: 120,
+            on_apply_failure: ApplyFailure::Stop,
+        }
+    }
+
+    #[test]
+    fn a_cancel_after_a_send_names_the_send_that_ran() {
+        let edits = send_edits();
+        let (runner, gate) = FakeScriptRunner::with_stdout(FIVE)
+            .streaming(
+                &[
+                    "[1/4] running Check monitors",
+                    "[1/4] done Check monitors",
+                    "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+                    "  KG241Y X1: HDMI 1 sent (was 0x0F)",
+                    "[2/4] done Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+                    "[3/4] running Apply arrangement",
+                ],
+                0,
+            )
+            .pausing_after(5);
+        let (_dir, app, layout) = app_with(runner);
+        app.save_layout(&layout.id, edits.clone()).unwrap();
+        let run = {
+            let app = Arc::clone(&app);
+            let id = layout.id.clone();
+            thread::spawn(move || collect(&app, &id))
+        };
+        wait_until(|| gate.parked());
+        app.cancel_switch().unwrap();
+        let (result, _) = run.join().unwrap();
+        assert_eq!(
+            result.unwrap(),
+            SwitchResult::Cancelled {
+                sent: vec!["Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops".into()]
+            }
+        );
+    }
+
+    #[test]
+    fn a_send_skipped_for_a_monitor_that_is_not_active_still_applies() {
+        let edits = send_edits();
+        let skipped = &[
+            "[1/4] done Check monitors",
+            "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+            "[2/4] skipped Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops: KG241Y X1 is not Active",
+            "[3/4] done Apply arrangement",
+            "[4/4] done Verify",
+            "Exit code 0",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(skipped, 0));
+        app.save_layout(&layout.id, edits.clone()).unwrap();
+        let (result, events) = collect(&app, &layout.id);
+        assert!(matches!(result.unwrap(), SwitchResult::Applied { .. }));
+        assert!(progress_lines(&events).iter().any(|l| l.starts_with("2/4 Skipped")));
+    }
+
+    #[test]
+    fn a_send_whose_command_failed_stops_with_the_input_button_action() {
+        let edits = send_edits();
+        let failed = &[
+            "[1/4] done Check monitors",
+            "[2/4] running Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops",
+            "[2/4] failed Send HDMI 1 to KG241Y X1, then wait until KG241Y X1 drops: press the input button on KG241Y X1 to pick HDMI 1, then switch again; could not send the input source (SetVCPFeature failed, Win32 error 31)",
+            "Exit code 2",
+        ];
+        let (_dir, app, layout) = app_with(FakeScriptRunner::with_stdout(FIVE).streaming(failed, 2));
+        app.save_layout(&layout.id, edits).unwrap();
+        match collect(&app, &layout.id).0.unwrap() {
+            SwitchResult::Failed {
+                step,
+                next_action,
+                explanation,
+                ..
+            } => {
+                assert_eq!(step, Some(2));
+                assert_eq!(next_action, "press the input button on KG241Y X1 to pick HDMI 1, then switch again");
+                assert_eq!(explanation, FailureExplanation::None);
+            }
+            other => panic!("expected Failed, got {other:?}"),
+        }
+    }
+
     #[test]
     fn a_script_that_stops_outside_a_step_explains_itself_from_its_last_line() {
         let refused = &[
@@ -784,7 +911,7 @@ mod tests {
     #[test]
     fn cancel_before_the_apply_kills_the_script_and_resolves_cancelled() {
         // Paused after "[1/3] done Check monitors": the apply has not reported yet.
-        let (runner, _gate) = FakeScriptRunner::with_stdout(FIVE)
+        let (runner, gate) = FakeScriptRunner::with_stdout(FIVE)
             .streaming(APPLIED, 0)
             .pausing_after(5);
         let (_dir, app, layout) = app_with(runner);
@@ -793,12 +920,12 @@ mod tests {
             let id = layout.id.clone();
             thread::spawn(move || collect(&app, &id))
         };
-        wait_until(|| app.switching().is_some());
+        wait_until(|| gate.parked());
         // The lock the real script would have written by now, and cannot remove once killed.
         fs::write(app.lock_path(), "pid=1\r\nlayout=Desk\r\n").unwrap();
         app.cancel_switch().unwrap();
         let (result, events) = run.join().unwrap();
-        assert_eq!(result.unwrap(), SwitchResult::Cancelled);
+        assert_eq!(result.unwrap(), SwitchResult::Cancelled { sent: vec![] });
         assert_eq!(
             progress_lines(&events),
             vec!["1/3 Running Check monitors", "1/3 Done Check monitors"]

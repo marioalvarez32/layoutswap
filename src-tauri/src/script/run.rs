@@ -212,6 +212,8 @@ pub struct Gate {
 struct GateState {
     released: bool,
     killed: bool,
+    /// The script has reached the gate and is waiting at it.
+    parked: bool,
 }
 
 #[cfg(test)]
@@ -230,9 +232,15 @@ impl Gate {
         self.state.lock().unwrap().killed
     }
 
+    /// Whether the script has reached the gate, so a test can act at that moment.
+    pub fn parked(&self) -> bool {
+        self.state.lock().unwrap().parked
+    }
+
     /// Blocks until released or killed; returns whether the script was killed.
     fn wait(&self) -> bool {
         let mut state = self.state.lock().unwrap();
+        state.parked = true;
         while !state.released && !state.killed {
             state = self.changed.wait(state).unwrap();
         }

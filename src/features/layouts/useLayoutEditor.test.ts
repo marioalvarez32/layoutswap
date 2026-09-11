@@ -38,6 +38,16 @@ describe('useLayoutEditor', () => {
     expect(result.addStep('after')).not.toBe(id);
   });
 
+  it('sets the drop wait and shows its rule out of bounds', () => {
+    const { result } = withSetup(() => useLayoutEditor('layout-desk'));
+    result.setDropWait(9);
+    expect(result.edits.value.dropWaitSeconds).toBe(9);
+    expect(result.dirty.value).toBe(true);
+    expect(result.dropWaitRule.value).toBeNull();
+    result.setDropWait(61);
+    expect(result.dropWaitRule.value).toContain('between 0 and 60');
+  });
+
   it('saves the draft through the command and picks up the stored layout', async () => {
     const step = newWaitStep('before', 's1');
     vi.mocked(saveLayout).mockResolvedValueOnce({ ...layoutFixture(), steps: [step], updatedAt: '2026-09-10T20:00:00-05:00' });
@@ -54,7 +64,7 @@ describe('useLayoutEditor', () => {
   it('keeps the draft and the refusal when the save is refused', async () => {
     vi.mocked(saveLayout).mockRejectedValueOnce({ message: 'Keep a wait step between 1 and 600 seconds.', logPath: null });
     const { result } = withSetup(() => useLayoutEditor('layout-desk'));
-    result.setSteps([{ ...newWaitStep('before', 's1'), seconds: 0 }]);
+    result.setSteps([{ id: 's1', side: 'before', kind: 'wait', seconds: 0 }]);
     await result.save();
     expect(result.error.value).toContain('between 1 and 600');
     expect(result.dirty.value).toBe(true);

@@ -1,4 +1,4 @@
-import type { Inventory, Layout, Monitor } from '@/domain/generated/types';
+import type { InputSource, Inventory, Layout, Monitor } from '@/domain/generated/types';
 
 const GPU = 'NVIDIA GeForce RTX 5070 Laptop GPU';
 const GPU_PATH = String.raw`\\?\PCI#VEN_10DE&DEV_2D18#0#{5b45201d-f2f2-4f3b-85bb-30ff1f953599}`;
@@ -43,6 +43,20 @@ export function inventoryFixture(): Inventory {
       modeAdapters: [GPU_PATH, GPU_PATH, GPU_PATH, GPU_PATH, GPU_PATH, GPU_PATH, GPU_PATH, GPU_PATH],
     },
   };
+}
+
+/** The fixed input table as the Rust side returns it. */
+export function inputSourcesFixture(): InputSource[] {
+  return [
+    { code: 0x01, name: 'VGA' },
+    { code: 0x03, name: 'DVI 1' },
+    { code: 0x04, name: 'DVI 2' },
+    { code: 0x0f, name: 'DisplayPort 1' },
+    { code: 0x10, name: 'DisplayPort 2' },
+    { code: 0x11, name: 'HDMI 1' },
+    { code: 0x12, name: 'HDMI 2' },
+    { code: 0x1b, name: 'USB-C' },
+  ];
 }
 
 /** The layout a capture of `inventoryFixture()` produces. */

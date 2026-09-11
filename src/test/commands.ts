@@ -1,7 +1,7 @@
 import { vi } from 'vitest';
 import type * as commands from '@/tauri/commands';
 import type { Config } from '@/domain/generated/types';
-import { inventoryFixture, layoutFixture } from './fixtures';
+import { inputSourcesFixture, inventoryFixture, layoutFixture } from './fixtures';
 
 /** The config Rust returns on a fresh machine. */
 export function defaultConfig(): Config {
@@ -28,6 +28,7 @@ export function commandsMock(): typeof commands {
     captureLayout: vi.fn<typeof commands.captureLayout>().mockResolvedValue({ outcome: 'saved', layout: layoutFixture() }),
     saveLayout: vi.fn<typeof commands.saveLayout>().mockImplementation(async (_id, edits) => ({ ...layoutFixture(), ...edits })),
     scriptStates: vi.fn<typeof commands.scriptStates>().mockResolvedValue([]),
+    inputSources: vi.fn<typeof commands.inputSources>().mockResolvedValue(inputSourcesFixture()),
     regenerateScript: vi.fn<typeof commands.regenerateScript>().mockResolvedValue(layoutFixture()),
     openScript: vi.fn<typeof commands.openScript>().mockResolvedValue(undefined),
     switchLayout: vi.fn<typeof commands.switchLayout>().mockResolvedValue({ outcome: 'applied', durationMs: 11_400 }),

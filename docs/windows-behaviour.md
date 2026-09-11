@@ -31,7 +31,9 @@ most timing defaults trace back to one of these.
   handle comes from the GDI name, which exists only for an Active monitor. So an input
   source is sent before the apply when the monitor is leaving and after it when the
   monitor is coming back. The reference scripts settle 3 s after a monitor becomes
-  Available before applying, and 2 s after the apply before sending an input.
+  Available before applying, and 2 s after the apply before sending an input; the
+  generated script keeps the 2 s after every real apply, before the after-steps and
+  verify.
 - **DDC-CI reads are slow and some monitors stay silent.** Reading the input source
   (VCP code 0x60) takes tens to hundreds of milliseconds per monitor over dxva2, and a
   built-in panel or a monitor behind some docks never answers. The probe starts every

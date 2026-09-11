@@ -1,42 +1,48 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { Step, StepSide } from '@/domain/generated/types';
-import {
-  canMove,
-  checkWaitSeconds,
-  moveStep,
-  removeStep,
-  stepSentence,
-  stepsOn,
-  updateStep,
-  WAIT_SECONDS_MAX,
-  WAIT_SECONDS_MIN,
-} from '@/domain/steps';
+import type { InputSource, Layout, Step, StepSide } from '@/domain/generated/types';
+import { canMove, moveStep, removeStep, replaceStep, sendStepNote, stepsOn, type LabelOf } from '@/domain/steps';
 import Button from '@/ui/Button.vue';
+import StepRow, { type StepMonitor } from './StepRow.vue';
 
 const props = defineProps<{
   steps: Step[];
+  layout: Pick<Layout, 'summary'>;
+  monitors: StepMonitor[];
+  inputSources: InputSource[];
+  labelOf: LabelOf;
+  dropWaitSeconds: number;
+  availableWaitSeconds: number;
 }>();
 
 const emit = defineEmits<{
   change: [steps: Step[]];
-  /** Add a wait step on this side; the caller gives it its id. */
+  /** Add a step on this side; the caller gives it its id. */
   add: [side: StepSide];
 }>();
 
 // Which row is expanded is the template's business alone.
 const expandedId = ref<string | null>(null);
 
-// The timeline: the fixed rows the script always runs, with the steps around the apply.
-const before = computed(() => stepsOn(props.steps, 'before'));
-const after = computed(() => stepsOn(props.steps, 'after'));
+// The timeline: the fixed rows the script always runs, with the steps around the apply
+// and an Add button at the end of each side.
+type Row = { kind: 'fixed'; text: string; apply?: boolean } | { kind: 'step'; step: Step } | { kind: 'add'; side: StepSide };
+const rows = computed<Row[]>(() => [
+  { kind: 'fixed', text: 'Check monitors' },
+  ...stepsOn(props.steps, 'before').map((step): Row => ({ kind: 'step', step })),
+  { kind: 'add', side: 'before' },
+  { kind: 'fixed', text: 'Apply arrangement', apply: true },
+  ...stepsOn(props.steps, 'after').map((step): Row => ({ kind: 'step', step })),
+  { kind: 'add', side: 'after' },
+  { kind: 'fixed', text: 'Verify' },
+]);
 
 function toggle(id: string) {
   expandedId.value = expandedId.value === id ? null : id;
 }
 
-function setSeconds(id: string, raw: string) {
-  emit('change', updateStep(props.steps, id, { seconds: Number(raw) }));
+function change(step: Step) {
+  emit('change', replaceStep(props.steps, step.id, step));
 }
 
 function move(id: string, direction: 'up' | 'down') {
@@ -59,113 +65,33 @@ defineExpose({ expand });
 
 <template>
   <ol class="timeline">
-    <li class="fixed">
-      <span class="fixed-text">Check monitors</span>
-    </li>
-
-    <li
-      v-for="step in before"
-      :key="step.id"
-      class="step"
-      :class="{ expanded: expandedId === step.id }"
-    >
-      <button
-        type="button"
-        class="sentence"
-        :aria-expanded="expandedId === step.id ? 'true' : 'false'"
-        @click="toggle(step.id)"
-      >
-        {{ stepSentence(step) }}
-      </button>
-      <div v-if="expandedId === step.id" class="controls">
-        <label class="field">
-          <span>Wait</span>
-          <input
-            type="number"
-            class="seconds"
-            :min="WAIT_SECONDS_MIN"
-            :max="WAIT_SECONDS_MAX"
-            :value="step.seconds"
-            :aria-invalid="checkWaitSeconds(step.seconds) ? 'true' : undefined"
-            @input="setSeconds(step.id, ($event.target as HTMLInputElement).value)"
-          >
-          <span>seconds</span>
-        </label>
-        <span v-if="checkWaitSeconds(step.seconds)" class="rule" role="alert">{{ checkWaitSeconds(step.seconds) }}</span>
-        <div class="row-actions">
-          <Button class="move-up" :disabled="!canMove(steps, step.id, 'up')" @click="move(step.id, 'up')">
-            Move up
-          </Button>
-          <Button class="move-down" :disabled="!canMove(steps, step.id, 'down')" @click="move(step.id, 'down')">
-            Move down
-          </Button>
-          <Button class="remove" @click="remove(step.id)">
-            Remove
-          </Button>
-        </div>
-      </div>
-    </li>
-    <li class="add-row">
-      <Button class="add add-before" @click="emit('add', 'before')">
-        Add step before
-      </Button>
-    </li>
-
-    <li class="fixed apply">
-      <span class="fixed-text">Apply arrangement</span>
-    </li>
-
-    <li
-      v-for="step in after"
-      :key="step.id"
-      class="step"
-      :class="{ expanded: expandedId === step.id }"
-    >
-      <button
-        type="button"
-        class="sentence"
-        :aria-expanded="expandedId === step.id ? 'true' : 'false'"
-        @click="toggle(step.id)"
-      >
-        {{ stepSentence(step) }}
-      </button>
-      <div v-if="expandedId === step.id" class="controls">
-        <label class="field">
-          <span>Wait</span>
-          <input
-            type="number"
-            class="seconds"
-            :min="WAIT_SECONDS_MIN"
-            :max="WAIT_SECONDS_MAX"
-            :value="step.seconds"
-            :aria-invalid="checkWaitSeconds(step.seconds) ? 'true' : undefined"
-            @input="setSeconds(step.id, ($event.target as HTMLInputElement).value)"
-          >
-          <span>seconds</span>
-        </label>
-        <span v-if="checkWaitSeconds(step.seconds)" class="rule" role="alert">{{ checkWaitSeconds(step.seconds) }}</span>
-        <div class="row-actions">
-          <Button class="move-up" :disabled="!canMove(steps, step.id, 'up')" @click="move(step.id, 'up')">
-            Move up
-          </Button>
-          <Button class="move-down" :disabled="!canMove(steps, step.id, 'down')" @click="move(step.id, 'down')">
-            Move down
-          </Button>
-          <Button class="remove" @click="remove(step.id)">
-            Remove
-          </Button>
-        </div>
-      </div>
-    </li>
-    <li class="add-row">
-      <Button class="add add-after" @click="emit('add', 'after')">
-        Add step after
-      </Button>
-    </li>
-
-    <li class="fixed">
-      <span class="fixed-text">Verify</span>
-    </li>
+    <template v-for="(row, i) in rows" :key="row.kind === 'step' ? row.step.id : `${row.kind}-${i}`">
+      <li v-if="row.kind === 'fixed'" class="fixed" :class="{ apply: row.apply }">
+        <span class="fixed-text">{{ row.text }}</span>
+      </li>
+      <li v-else-if="row.kind === 'add'" class="add-row">
+        <Button class="add" :class="`add-${row.side}`" @click="emit('add', row.side)">
+          Add step {{ row.side }}
+        </Button>
+      </li>
+      <StepRow
+        v-else
+        :step="row.step"
+        :expanded="expandedId === row.step.id"
+        :monitors="monitors"
+        :input-sources="inputSources"
+        :label-of="labelOf"
+        :note="sendStepNote(row.step, layout, labelOf)"
+        :drop-wait-seconds="dropWaitSeconds"
+        :available-wait-seconds="availableWaitSeconds"
+        :can-move-up="canMove(steps, row.step.id, 'up')"
+        :can-move-down="canMove(steps, row.step.id, 'down')"
+        @toggle="toggle(row.step.id)"
+        @change="change"
+        @move="move(row.step.id, $event)"
+        @remove="remove(row.step.id)"
+      />
+    </template>
   </ol>
 </template>
 
@@ -202,67 +128,5 @@ defineExpose({ expand });
 .add-row {
   display: flex;
   padding: 0 var(--space-4);
-}
-
-.step {
-  border: var(--hairline) solid var(--line);
-  border-radius: var(--r);
-  background: var(--surface);
-}
-
-.step.expanded {
-  border-color: var(--accent-line);
-}
-
-.sentence {
-  display: block;
-  width: 100%;
-  min-height: var(--row-h);
-  padding: var(--space-3) var(--space-4);
-  border: 0;
-  background: transparent;
-  font-size: var(--text-md);
-  text-align: left;
-  cursor: pointer;
-}
-
-.sentence:focus-visible {
-  outline-offset: calc(-1 * var(--mark-w));
-}
-
-.controls {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-  padding: 0 var(--space-4) var(--space-4);
-}
-
-.field {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--text-md);
-}
-
-.seconds {
-  width: var(--col-on-off);
-  height: var(--row-h);
-  padding: 0 var(--space-2);
-  border: var(--hairline) solid var(--line-strong);
-  border-radius: var(--r);
-  background: var(--surface);
-  font-family: var(--data);
-  font-size: var(--text-md);
-}
-
-.rule {
-  font-size: var(--text-sm);
-  color: var(--crit);
-}
-
-.row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
 }
 </style>

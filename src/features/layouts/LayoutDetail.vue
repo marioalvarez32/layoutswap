@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import type { Inventory, Layout, MonitorState } from '@/domain/generated/types';
 import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
+import { stepLabeller, DROP_WAIT_SECONDS_MAX } from '@/domain/steps';
 import { describeCaptureTime } from '@/domain/time';
 import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import ArrangementSchematic from './ArrangementSchematic.vue';
 import StepsEditor from './StepsEditor.vue';
+import { useLayoutsStore } from './layouts.store';
 import { useLayoutEditor } from './useLayoutEditor';
 import { useLayoutScript } from './useLayoutScript';
 import { useSwitchLayout } from './useSwitchLayout';
@@ -21,6 +24,15 @@ const props = defineProps<{
 const script = useLayoutScript(() => props.layout.id);
 const switchAction = useSwitchLayout(() => props.layout.id);
 const editor = useLayoutEditor(() => props.layout.id);
+const { inputSources } = storeToRefs(useLayoutsStore());
+
+// The send step names monitors by the layout's label rule and marks their current input.
+const labelOf = computed(() => stepLabeller(props.aliases, props.layout.summary.monitors));
+const stepMonitors = computed(() => props.layout.summary.monitors.map((m) => ({
+  devicePath: m.devicePath,
+  label: labelOf.value(m.devicePath),
+  currentInput: liveMonitor(props.inventory, m.devicePath)?.inputSource ?? null,
+})));
 const stepsEditor = ref<InstanceType<typeof StepsEditor> | null>(null);
 
 function addStep(side: 'before' | 'after') {
@@ -160,9 +172,32 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
         <StepsEditor
           ref="stepsEditor"
           :steps="editor.edits.value.steps"
+          :layout="layout"
+          :monitors="stepMonitors"
+          :input-sources="inputSources"
+          :label-of="labelOf"
+          :drop-wait-seconds="editor.edits.value.dropWaitSeconds"
+          :available-wait-seconds="editor.edits.value.availableWaitSeconds"
           @change="editor.setSteps"
           @add="addStep"
         />
+        <details class="advanced">
+          <summary>Advanced: drop wait {{ editor.edits.value.dropWaitSeconds }} s</summary>
+          <label class="field">
+            <span>Drop wait</span>
+            <input
+              type="number"
+              class="drop-wait"
+              min="0"
+              :max="DROP_WAIT_SECONDS_MAX"
+              :value="editor.edits.value.dropWaitSeconds"
+              :aria-invalid="editor.dropWaitRule.value ? 'true' : undefined"
+              @input="editor.setDropWait(Number(($event.target as HTMLInputElement).value))"
+            >
+            <span>seconds a send step waits for its monitor to drop</span>
+          </label>
+          <span v-if="editor.dropWaitRule.value" class="rule" role="alert">{{ editor.dropWaitRule.value }}</span>
+        </details>
       </section>
 
       <section class="section">
@@ -392,6 +427,45 @@ ul {
   align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.advanced {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline) solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface-2);
+}
+
+.advanced summary {
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.drop-wait {
+  width: var(--col-primary);
+  height: var(--row-h);
+  padding: 0 var(--space-2);
+  border: var(--hairline) solid var(--line-strong);
+  border-radius: var(--r);
+  background: var(--surface);
+  font-family: var(--data);
+  font-size: var(--text-md);
+}
+
+.rule {
+  font-size: var(--text-sm);
+  color: var(--crit);
 }
 
 .list {

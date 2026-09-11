@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { CaptureOutcome, Config, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
+import type { CaptureOutcome, Config, InputSource, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
 
 export function loadConfig(): Promise<Config> {
   return invoke<Config>('load_config');
@@ -34,6 +34,11 @@ export function captureLayout(name: string, replaceId: string | null): Promise<C
  */
 export function saveLayout(layoutId: string, edits: LayoutEdits): Promise<Layout> {
   return invoke<Layout>('save_layout', { layoutId, edits });
+}
+
+/** The fixed input source table the step editor offers. */
+export function inputSources(): Promise<InputSource[]> {
+  return invoke<InputSource[]>('input_sources');
 }
 
 /** Every layout's generated-script state, read from the config and the disk. */

@@ -138,13 +138,18 @@ describe('SwitchProgress', () => {
       expect(wrapper.emitted('back')).toHaveLength(1);
     });
 
-    it('reads cancelled after a cancel', () => {
+    it('reads cancelled after a cancel and names the sends that ran', () => {
       const run = running();
-      run.result = { outcome: 'cancelled' };
+      run.result = { outcome: 'cancelled', sent: [] };
       run.finishedAt = 13_000;
       const wrapper = mountRun(run);
       expect(wrapper.find('h2').text()).toBe('Switch to Desk cancelled');
       expect(wrapper.find('.band.crit').exists()).toBe(false);
+      expect(wrapper.find('.cancelled-note').exists()).toBe(false);
+
+      run.result = { outcome: 'cancelled', sent: ['Send HDMI 1 to Ultrawide'] };
+      const sent = mountRun(run);
+      expect(sent.find('.cancelled-note').text()).toContain('Sent before the cancel: Send HDMI 1 to Ultrawide');
     });
   });
 

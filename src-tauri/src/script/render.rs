@@ -46,7 +46,9 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::config::layouts::{monitor_labels, step_sentence, Layout, Step, StepSide};
+use crate::config::layouts::{
+    monitor_labels, step_labeller, step_sentence, Layout, Step, StepKind, StepSide, WaitRule,
+};
 
 /// Bump on every change to a template's behaviour.
 pub const TEMPLATE_VERSION: u32 = 4;
@@ -65,6 +67,8 @@ pub struct Timeline {
     pub rows: Vec<String>,
     /// The one-based row of Apply arrangement, from which a cancel is refused.
     pub apply: u32,
+    /// The rows that send an input source, so a cancel can say which already ran.
+    pub sends: Vec<u32>,
 }
 
 impl Timeline {
@@ -74,17 +78,24 @@ impl Timeline {
     }
 }
 
-pub fn timeline(layout: &Layout) -> Timeline {
+/// `aliases` names the monitors a send step reads, by the one label rule.
+pub fn timeline(layout: &Layout, aliases: &BTreeMap<String, String>) -> Timeline {
+    let label = step_labeller(aliases, &layout.summary.monitors);
     let numbered = numbered_steps(layout);
     let before = numbered.iter().filter(|(_, s)| s.side == StepSide::Before);
     let after = numbered.iter().filter(|(_, s)| s.side == StepSide::After);
     let mut rows = vec![CHECK_ROW.to_string()];
-    rows.extend(before.map(|(_, s)| step_sentence(s)));
+    rows.extend(before.map(|(_, s)| step_sentence(s, &label)));
     let apply = rows.len() as u32 + 1;
     rows.push(APPLY_ROW.to_string());
-    rows.extend(after.map(|(_, s)| step_sentence(s)));
+    rows.extend(after.map(|(_, s)| step_sentence(s, &label)));
     rows.push(VERIFY_ROW.to_string());
-    Timeline { rows, apply }
+    let sends = numbered
+        .iter()
+        .filter(|(_, s)| matches!(s.kind, StepKind::SendInput { .. }))
+        .map(|(row, _)| *row)
+        .collect();
+    Timeline { rows, apply, sends }
 }
 
 /// Every step with its row number: the rule that numbers the timeline, in one place.
@@ -171,7 +182,8 @@ pub fn render_switch(
             })
             .collect(),
     };
-    let timeline = timeline(layout);
+    let timeline = timeline(layout, aliases);
+    let label = step_labeller(aliases, &layout.summary.monitors);
     let header = timeline
         .rows
         .iter()
@@ -184,7 +196,7 @@ pub fn render_switch(
         numbered
             .iter()
             .filter(|(_, s)| s.side == side)
-            .map(|(row, s)| step_block(*row, s))
+            .map(|(row, s)| step_block(*row, s, &label))
             .collect()
     };
     let before_blocks = blocks(StepSide::Before);
@@ -194,6 +206,11 @@ pub fn render_switch(
         .replace("{{STEP_COUNT}}", &timeline.rows.len().to_string())
         .replace("{{APPLY_STEP}}", &timeline.apply.to_string())
         .replace("{{VERIFY_STEP}}", &timeline.verify().to_string())
+        .replace("{{DROP_WAIT_SECONDS}}", &layout.drop_wait_seconds.to_string())
+        .replace(
+            "{{AVAILABLE_WAIT_SECONDS}}",
+            &layout.available_wait_seconds.to_string(),
+        )
         .replace("{{STEPS_BEFORE_PS}}", &before_blocks.join("\n"))
         .replace("{{STEPS_AFTER_PS}}", &after_blocks.join("\n"))
         .replace("{{LAYOUT_NAME}}", &layout.name)
@@ -213,26 +230,45 @@ pub fn render_switch(
     Script { text }
 }
 
-/// The PowerShell block for one step at its row. Validate-only runs skip every step.
-fn step_block(row: u32, step: &Step) -> String {
-    use crate::config::layouts::StepKind;
-    let sentence = ps_escape(&step_sentence(step));
-    let body: Vec<String> = match &step.kind {
-        StepKind::Wait { seconds } => vec![format!("    Start-Sleep -Seconds {seconds}")],
-    };
+/// The PowerShell block for one step at its row. Validate-only runs skip every step;
+/// the send step's function handles that itself, along with the skip when its monitor
+/// is not Active and the wait rule after the send.
+fn step_block(row: u32, step: &Step, label: &dyn Fn(&str) -> String) -> String {
+    let sentence = ps_escape(&step_sentence(step, label));
     let rule = "#-----------------------------------------------------------------------------";
     let mut lines = vec![
         rule.to_string(),
         format!("# [{row}] {sentence}"),
         rule.to_string(),
-        "if ($ValidateOnly) {".to_string(),
-        format!("    Write-Step {row} 'skipped' '{sentence}: validated only'"),
-        "} else {".to_string(),
-        format!("    Write-Step {row} 'running' '{sentence}'"),
     ];
-    lines.extend(body);
-    lines.push(format!("    Write-Step {row} 'done' '{sentence}'"));
-    lines.push("}".to_string());
+    match &step.kind {
+        StepKind::Wait { seconds } => {
+            lines.push("if ($ValidateOnly) {".to_string());
+            lines.push(format!("    Write-Step {row} 'skipped' '{sentence}: validated only'"));
+            lines.push("} else {".to_string());
+            lines.push(format!("    Write-Step {row} 'running' '{sentence}'"));
+            lines.push(format!("    Start-Sleep -Seconds {seconds}"));
+            lines.push(format!("    Write-Step {row} 'done' '{sentence}'"));
+            lines.push("}".to_string());
+        }
+        StepKind::SendInput {
+            device_path,
+            input_source,
+            wait,
+        } => {
+            let wait = match wait {
+                WaitRule::None => "none",
+                WaitRule::Drop => "drop",
+                WaitRule::Available => "available",
+            };
+            lines.push(format!(
+                "Send-InputSource -Row {row} -Sentence '{sentence}' -DevicePath '{}' -Label '{}' -Code {input_source} -InputName '{}' -Wait '{wait}'",
+                ps_escape(device_path),
+                ps_escape(&label(device_path)),
+                ps_escape(&crate::hardware::input_source::name(*input_source)),
+            ));
+        }
+    }
     lines.push(String::new());
     lines.join("\n")
 }
@@ -274,8 +310,8 @@ struct EmbeddedMonitor<'a> {
 mod tests {
     use super::*;
     use crate::config::layouts::{
-        summarise, ApplyFailure, Step, StepKind, Summary, DEFAULT_AVAILABLE_WAIT_SECONDS,
-        DEFAULT_DROP_WAIT_SECONDS,
+        summarise, ApplyFailure, Step, StepKind, Summary, WaitRule,
+        DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
     };
     use crate::hardware::{parse, ArrangementBlob, Inventory, MonitorState};
     use crate::script::progress::{parse_progress_line, StepStatus};
@@ -321,6 +357,28 @@ mod tests {
             side,
             kind: StepKind::Wait { seconds },
         }
+    }
+
+    fn send(id: &str, side: StepSide, path: &str, code: u32, wait: WaitRule) -> Step {
+        Step {
+            id: id.into(),
+            side,
+            kind: StepKind::SendInput {
+                device_path: path.into(),
+                input_source: code,
+                wait,
+            },
+        }
+    }
+
+    fn path_of(inventory: &Inventory, fragment: &str) -> String {
+        inventory
+            .monitors
+            .iter()
+            .find(|m| m.device_path.contains(fragment))
+            .unwrap()
+            .device_path
+            .clone()
     }
 
     fn small_blob(paths: usize) -> ArrangementBlob {
@@ -369,11 +427,35 @@ mod tests {
             wait("step-c", StepSide::After, 10),
         ];
 
+        // The console direction: send the ultrawide to HDMI 1 and wait for it to drop,
+        // before the apply turns it off. The ultrawide is aliased.
+        let mut console = layout("Console", &five);
+        console.steps = vec![send(
+            "send-hdmi",
+            StepSide::Before,
+            &path_of(&five, "AUS343F"),
+            0x11,
+            WaitRule::Drop,
+        )];
+        console.drop_wait_seconds = 8;
+        let mut console_aliases = BTreeMap::new();
+        console_aliases.insert(path_of(&five, "AUS343F"), "Ultrawide".to_string());
+
+        // The desk direction: after the apply, send the Acer back to HDMI 1 with no wait,
+        // and a step on a monitor the layout never saw.
+        let mut desk_return = layout("Desk return", &five);
+        desk_return.steps = vec![
+            send("send-back", StepSide::After, &path_of(&five, "ACR0EC4"), 0x11, WaitRule::None),
+            send("send-gone", StepSide::After, "gone", 0x1E, WaitRule::Available),
+        ];
+
         vec![
             ("switch-desk.ps1", desk, BTreeMap::new()),
             ("switch-one-off.ps1", one_off, BTreeMap::new()),
             ("switch-twins.ps1", twins_layout, twin_aliases),
             ("switch-steps.ps1", steps, BTreeMap::new()),
+            ("switch-console.ps1", console, console_aliases),
+            ("switch-desk-return.ps1", desk_return, BTreeMap::new()),
         ]
     }
 
@@ -411,7 +493,7 @@ mod tests {
     #[test]
     fn the_timeline_numbers_steps_around_the_fixed_rows() {
         let (_, layout, aliases) = fixtures().remove(3);
-        let t = timeline(&layout);
+        let t = timeline(&layout, &aliases);
         assert_eq!(
             t.rows,
             vec![
@@ -437,7 +519,43 @@ mod tests {
         let after_at = text.find("Write-Step 4 'running'").unwrap();
         let verify_at = text.find("Write-Step $VerifyStep 'running'").unwrap();
         assert!(wait_at < apply_at && apply_at < after_at && after_at < verify_at);
-        assert_eq!(timeline(&fixtures().remove(0).1).apply, 2);
+        assert_eq!(timeline(&fixtures().remove(0).1, &BTreeMap::new()).apply, 2);
+        assert!(t.sends.is_empty());
+    }
+
+    #[test]
+    fn a_send_step_renders_as_one_call_with_its_label_code_and_wait() {
+        let (_, console, aliases) = fixtures().remove(4);
+        let t = timeline(&console, &aliases);
+        assert_eq!(
+            t.rows[1],
+            "Send HDMI 1 to Ultrawide, then wait until Ultrawide drops"
+        );
+        assert_eq!(t.sends, vec![2]);
+        let text = render(&console, &aliases);
+        let call = text
+            .lines()
+            .find(|l| l.starts_with("Send-InputSource -Row 2 "))
+            .expect("the send call");
+        assert!(call.contains("-Label 'Ultrawide' -Code 17 -InputName 'HDMI 1' -Wait 'drop'"), "{call}");
+        assert!(call.contains("AUS343F"), "{call}");
+        assert!(text.contains("$DropWaitSeconds      = 8"), "{text}");
+        assert!(text.contains("$AvailableWaitSeconds = 120"));
+        assert!(text.contains("function Send-InputSource"));
+        assert!(text.contains("SetVCPFeature"));
+        assert!(text.contains("SetLastError = true"));
+
+        let (_, desk_return, aliases) = fixtures().remove(5);
+        let t = timeline(&desk_return, &aliases);
+        assert_eq!(t.rows[2], "Send HDMI 1 to KG241Y X1");
+        assert_eq!(t.rows[3], "Send Input 0x1E to unknown monitor, then wait until unknown monitor is Available");
+        assert_eq!(t.sends, vec![3, 4]);
+        let text = render(&desk_return, &aliases);
+        let send_at = text.find("Send-InputSource -Row 3 ").unwrap();
+        let apply_at = text.find("Write-Step $ApplyStep 'done'").unwrap();
+        let verify_at = text.find("Write-Step $VerifyStep 'running'").unwrap();
+        assert!(apply_at < send_at && send_at < verify_at);
+        assert!(text.contains("-Label 'unknown monitor' -Code 30 -InputName 'Input 0x1E' -Wait 'available'"), "{text}");
     }
 
     #[test]
@@ -499,7 +617,7 @@ mod tests {
     fn every_progress_line_the_template_prints_parses() {
         // The steps fixture has six rows; the fixed rows print through variables.
         let (_, desk, aliases) = fixtures().remove(3);
-        let t = timeline(&desk);
+        let t = timeline(&desk, &aliases);
         let of = t.rows.len() as u32;
         let raw = render(&desk, &aliases);
         assert!(raw.contains("$ApplyStep     = 3"));

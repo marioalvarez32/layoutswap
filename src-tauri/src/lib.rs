@@ -68,6 +68,7 @@ pub fn run() {
             commands::probe,
             commands::capture_layout,
             commands::save_layout,
+            commands::input_sources,
             commands::script_states,
             commands::regenerate_script,
             commands::open_script,

@@ -139,6 +139,15 @@ export function describeVerifyFailure(failure: VerifyFailure): string {
   }
 }
 
+/** The line a cancelled result shows when a send step had already run. */
+export function cancelledNote(run: SwitchRun): string | null {
+  const result = run.result;
+  if (result?.outcome !== 'cancelled' || result.sent.length === 0) {
+    return null;
+  }
+  return `Sent before the cancel: ${result.sent.join('; ')}. The monitor may be showing another device now.`;
+}
+
 export interface FailureBand {
   /** The next action, as a sentence. */
   action: string;

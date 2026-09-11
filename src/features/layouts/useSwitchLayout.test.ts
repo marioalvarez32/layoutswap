@@ -39,7 +39,7 @@ describe('useSwitchLayout', () => {
     await result.start();
     expect(switchLayout).not.toHaveBeenCalled();
 
-    store.switchRun.result = { outcome: 'cancelled' };
+    store.switchRun.result = { outcome: 'cancelled', sent: [] };
     await flushPromises();
     expect(result.blockedBy.value).toBeNull();
   });

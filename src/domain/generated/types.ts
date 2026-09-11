@@ -52,6 +52,11 @@ export type DdcCi = "answered" | "notAnswering" | "notRead";
 export type FailureExplanation = { "kind": "absent", monitors: Array<string>, } | { "kind": "verify", failures: Array<VerifyFailure>, warnings: Array<string>, } | { "kind": "none" };
 
 /**
+ * One entry of the fixed table, as the step editor offers it.
+ */
+export type InputSource = { code: number, name: string, };
+
+/**
  * What the probe found: every monitor Windows knows about and the arrangement of the
  * active ones, as the raw display-config arrays needed to apply it again (ADR-0006).
  */
@@ -182,12 +187,28 @@ export type Step = {
 /**
  * Stable for the life of the step, so the editor can track rows.
  */
-id: string, side: StepSide, } & ({ "kind": "wait", seconds: number, });
+id: string, side: StepSide, } & ({ "kind": "wait", seconds: number, } | { "kind": "sendInput", 
+/**
+ * The monitor, by device path (ADR-0005); any monitor the layout knows.
+ */
+devicePath: string, 
+/**
+ * The VCP code 0x60 value, from the fixed table or typed as another code.
+ */
+inputSource: number, wait: WaitRule, });
 
 /**
- * What a step does. The send step arrives with its own ticket.
+ * What a step does.
  */
-export type StepKind = { "kind": "wait", seconds: number, };
+export type StepKind = { "kind": "wait", seconds: number, } | { "kind": "sendInput", 
+/**
+ * The monitor, by device path (ADR-0005); any monitor the layout knows.
+ */
+devicePath: string, 
+/**
+ * The VCP code 0x60 value, from the fixed table or typed as another code.
+ */
+inputSource: number, wait: WaitRule, };
 
 /**
  * Which side of Apply arrangement a step runs on.
@@ -236,13 +257,18 @@ step: number | null, stepName: string, nextAction: string, reason: string, exitC
 /**
  * `switch.log` in the layout folder.
  */
-logPath: string, explanation: FailureExplanation, } | { "outcome": "cancelled" };
+logPath: string, explanation: FailureExplanation, } | { "outcome": "cancelled", sent: Array<string>, };
 
 /**
  * One way the arrangement differs from the layout. `Display` gives the same line the
  * script prints, so the app and the log read alike.
  */
 export type VerifyFailure = { "kind": "notOn", label: string, } | { "kind": "onButShouldBeOff", label: string, } | { "kind": "misplaced", label: string, actual: Point, expected: Point, } | { "kind": "wrongSize", label: string, actual: Size, expected: Size, } | { "kind": "extra", name: string, };
+
+/**
+ * What a send step waits for after sending (CONTEXT.md: Wait rule).
+ */
+export type WaitRule = "none" | "drop" | "available";
 
 /**
  * A window size in logical pixels.

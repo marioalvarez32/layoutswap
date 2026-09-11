@@ -114,9 +114,9 @@ describe('layouts store: switch', () => {
     expect(cancelSwitch).toHaveBeenCalledTimes(1);
     expect(store.switchRun!.cancelling).toBe(true);
 
-    script.finish({ outcome: 'cancelled' });
+    script.finish({ outcome: 'cancelled', sent: [] });
     await pending;
-    expect(store.switchRun!.result).toEqual({ outcome: 'cancelled' });
+    expect(store.switchRun!.result).toEqual({ outcome: 'cancelled', sent: [] });
     expect(store.switchRun!.cancelling).toBe(false);
   });
 
@@ -287,7 +287,7 @@ describe('layouts store: switch', () => {
     const secondRun = store.switchTo('layout-desk');
     await flushPromises();
     again.emit(STARTED);
-    again.finish({ outcome: 'cancelled' });
+    again.finish({ outcome: 'cancelled', sent: [] });
     await secondRun;
     store.select('layout-film');
     expect(store.switchRun).toBeNull();

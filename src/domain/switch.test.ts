@@ -4,6 +4,7 @@ import {
   appendLog,
   applyProgress,
   canCancel,
+  cancelledNote,
   describeVerifyFailure,
   failureBand,
   formatSeconds,
@@ -96,7 +97,7 @@ describe('canCancel', () => {
 
   it('is off once a cancel is in flight or the script has exited', () => {
     expect(canCancel(run({ cancelling: true }))).toBe(false);
-    expect(canCancel(run({ result: { outcome: 'cancelled' } }))).toBe(false);
+    expect(canCancel(run({ result: { outcome: 'cancelled', sent: [] } }))).toBe(false);
   });
 });
 
@@ -131,7 +132,7 @@ describe('switchHeadline', () => {
 
   it('says how long a failed or cancelled switch ran', () => {
     expect(switchHeadline(run({ result: failed(), finishedAt: 4_200 }), 0)).toEqual({ title: 'Could not switch to Desk', aside: 'Stopped after 3.2 s', tone: 'crit' });
-    expect(switchHeadline(run({ result: { outcome: 'cancelled' }, finishedAt: 2_000 }), 0)).toEqual({ title: 'Switch to Desk cancelled', aside: 'Stopped after 1.0 s', tone: 'mute' });
+    expect(switchHeadline(run({ result: { outcome: 'cancelled', sent: [] }, finishedAt: 2_000 }), 0)).toEqual({ title: 'Switch to Desk cancelled', aside: 'Stopped after 1.0 s', tone: 'mute' });
   });
 });
 
@@ -234,9 +235,15 @@ describe('failureBand', () => {
     });
   });
 
+  it('names the sends that ran before a cancel', () => {
+    expect(cancelledNote(run({ result: { outcome: 'cancelled', sent: [] } }))).toBeNull();
+    expect(cancelledNote(run({ result: { outcome: 'cancelled', sent: ['Send HDMI 1 to Ultrawide, then wait until Ultrawide drops'] } }))).toBe('Sent before the cancel: Send HDMI 1 to Ultrawide, then wait until Ultrawide drops. The monitor may be showing another device now.');
+    expect(cancelledNote(run())).toBeNull();
+  });
+
   it('is empty while running and for an applied or cancelled result', () => {
     expect(failureBand(run())).toBeNull();
     expect(failureBand(run({ result: { outcome: 'applied', durationMs: 1 } }))).toBeNull();
-    expect(failureBand(run({ result: { outcome: 'cancelled' } }))).toBeNull();
+    expect(failureBand(run({ result: { outcome: 'cancelled', sent: [] } }))).toBeNull();
   });
 });

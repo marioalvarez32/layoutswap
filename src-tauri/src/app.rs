@@ -215,6 +215,11 @@ impl App {
         })
     }
 
+    /// The fixed input source table the step editor offers.
+    pub fn input_sources(&self) -> Vec<hardware::input_source::InputSource> {
+        hardware::input_source::table()
+    }
+
     /// Save from the layout editor: the steps, timings and fallback replace the layout's,
     /// `updated_at` moves, and the script is regenerated once. Refused when the edits
     /// break their bounds, and while that layout is switching.

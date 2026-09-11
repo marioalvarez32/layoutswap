@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="display:flex;flex-direction:column;gap:10px;padding:14px 28px;border-bottom:1px solid var(--line);background:var(--surface)">
+  <div style="display:flex;align-items:center;gap:12px">
+    <span style="display:inline-flex;align-items:baseline;font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:{{ row.stateBg }};color:{{ row.stateInk }}">{{ row.state }}<sc-if value="{{ row.asleep }}" hint-placeholder-val="{{ false }}"><span style="font-weight:400;opacity:0.62">, asleep</span></sc-if></span>
+    <sc-if value="{{ row.editing }}" hint-placeholder-val="{{ false }}">
+      <input value="{{ row.alias }}" style="width:150px;height:32px;padding:0 8px;border:1.5px solid var(--accent);border-radius:var(--r-sm);background:var(--surface);font-family:var(--body);font-size:14.5px;font-weight:600;color:var(--ink);outline:2px solid var(--focus);outline-offset:1px">
+    </sc-if>
+    <sc-if value="{{ row.notEditing }}" hint-placeholder-val="{{ true }}">
+      <span style="display:flex;align-items:center;gap:7px;padding:4px 8px;border:1px dashed var(--line-strong);border-radius:var(--r-sm);cursor:text" style-hover="border-color:var(--accent)">
+        <span style="font-size:15px;font-weight:600;color:var(--ink)">{{ row.alias }}</span>
+        <span style="font-size:10.5px;color:var(--ink-3)">edit</span>
+      </span>
+    </sc-if>
+    <span style="font-size:13px;color:var(--ink-2)">{{ row.name }}</span>
+    <span style="flex:1"></span>
+    <span style="font-size:12.5px;color:var(--ink-2)">{{ row.note }}</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px;font-family:var(--data);font-size:11.5px;color:var(--ink-2)">
+    <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">GPU</span>{{ row.gpu }}</div>
+    <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Connector</span>{{ row.connector }}</div>
+    <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Position</span>{{ row.pos }}</div>
+    <div style="display:flex;flex-direction:column;gap:3px"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Size</span>{{ row.size }}</div>
+    <div style="display:flex;flex-direction:column;gap:3px;align-items:flex-start"><span style="font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Current input source</span>
+      <span style="display:flex;align-items:center;height:26px;padding:0 9px;border:1px solid {{ row.inputLine }};border-radius:var(--r-sm);background:{{ row.inputBg }};font-family:var(--data);font-size:11.5px;color:{{ row.inputInk }}">{{ row.input }}</span>
+    </div>
+  </div>
+
+  <sc-if value="{{ row.canExpand }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;align-items:center;gap:7px;width:fit-content;cursor:pointer;color:var(--accent);font-size:12.5px;font-weight:500" style-hover="text-decoration:underline">
+      <span style="font-size:9px">{{ row.caret }}</span><span>{{ row.expandLabel }}</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ row.muted }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;align-items:center;gap:8px;font-size:12.5px;color:{{ row.mutedInk }}">
+      <sc-if value="{{ row.reading }}" hint-placeholder-val="{{ false }}">
+        <span style="width:9px;height:9px;border-radius:50%;border:2px solid var(--accent-line);border-top-color:var(--accent);animation:dcspin 0.9s linear infinite"></span>
+      </sc-if>
+      <span>{{ row.muted }}</span>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ row.expanded }}" hint-placeholder-val="{{ false }}">
+    <div style="display:flex;flex-direction:column;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2)">
+      <div style="display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px 14px;align-items:start">
+        <span style="font-family:var(--data);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);padding-top:7px">Accepts</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <sc-for list="{{ row.accepts }}" as="i" hint-placeholder-count="3">
+            <span style="display:flex;align-items:center;height:28px;padding:0 10px;border:1px solid {{ i.line }};border-radius:var(--r-sm);background:{{ i.bg }};font-family:var(--data);font-size:11.5px;color:{{ i.ink }}">{{ i.label }}</span>
+          </sc-for>
+        </div>
+        <span style="font-family:var(--data);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);padding-top:2px">Wake</span>
+        <span style="font-family:var(--data);font-size:12px;color:{{ row.wakeInk }}">{{ row.wake }}</span>
+        <span style="font-family:var(--data);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3);padding-top:2px">Modes</span>
+        <div style="display:flex;flex-direction:column;gap:4px;font-family:var(--data);font-size:12px;color:var(--ink-2);line-height:1.5">
+          <sc-for list="{{ row.modes }}" as="m" hint-placeholder-count="3">
+            <span style="text-wrap:pretty">{{ m.text }}</span>
+          </sc-for>
+        </div>
+      </div>
+      <div style="padding-top:2px;border-top:1px solid var(--line);font-family:var(--data);font-size:11px;color:var(--ink-3);padding-top:10px">{{ row.readAt }}</div>
+    </div>
+  </sc-if>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1160,&quot;height&quot;:260},&quot;row&quot;:{&quot;editor&quot;:null,&quot;tsType&quot;:&quot;object&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const r = this.props.row ?? {};
+    return { row: { notEditing: !r.editing, caret: r.expanded ? "▼" : "▶", ...r } };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -52,8 +52,276 @@
 body{margin:0;background:oklch(0.93 0.006 195);color:var(--ink);font-family:var(--body);}
 a{color:var(--accent);text-decoration:none}
 a:hover{color:var(--accent-hover);text-decoration:underline}
+@keyframes dcspin{to{transform:rotate(360deg)}}
 </style>
 </helmet>
+
+<section style="display:flex;flex-direction:column;gap:64px;padding:56px 64px 96px;font-family:var(--body)">
+
+  <header style="display:flex;flex-direction:column;gap:10px;max-width:820px">
+    <div style="font-family:var(--data);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:oklch(0.50 0.02 235)">Turn 3 &#183; ticket #31 &#183; spec #28</div>
+    <h1 style="margin:0;font-family:var(--display);font-size:34px;font-weight:600;letter-spacing:-0.02em;color:oklch(0.24 0.015 235)">Capabilities live under the row</h1>
+    <p style="margin:0;font-size:15px;line-height:1.55;color:oklch(0.44 0.013 235);text-wrap:pretty">Each Active monitor's row expands to what it accepts, whether it can be woken, and the modes Windows lists; <a href="#3b">3b</a> shows the three reasons a row cannot be read. Asleep rides on the Active chip as a muted suffix, on Monitors and on the layout detail (<a href="#3c">3c</a>). <a href="#3d">3d</a> puts accepted inputs at the top of the send select, <a href="#3e">3e</a> and <a href="#3f">3f</a> are the wake band and its timeout, <a href="#3g">3g</a> the dark theme.</p>
+  </header>
+
+  <div style="display:flex;flex-direction:column;gap:56px">
+
+    <!-- 3a Monitors with capabilities -->
+    <div id="3a" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3a</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Monitors &#183; capabilities and Re-check</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Active expanded, Active asleep with the alias in edit, Active reading, Available, Absent &#183; frame drawn 1060 tall so all five show; the real window is 860 and scrolls</span>
+      </div>
+      <div style="width:1280px;height:1060px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="monitors" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em">Monitors</h2>
+                <p style="margin:0;font-size:13px;color:var(--ink-2)">Five monitors connected. Aliases are yours; every other column is read from the hardware.</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;flex:none">
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">Last probe 11:52</span>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;font-weight:500;cursor:pointer" style-hover="border-color:var(--accent);color:var(--accent)">Refresh</button>
+                <button disabled="{{ true }}" style="height:44px;padding:0 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--ink-3);font-family:var(--body);font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px">
+                  <span style="width:10px;height:10px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--ink-3);animation:dcspin 0.9s linear infinite"></span>Re-checking
+                </button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+              <sc-for list="{{ capRows }}" as="m" hint-placeholder-count="5">
+                <dc-import name="MonitorRow" row="{{ m }}" hint-size="100%,150px"></dc-import>
+              </sc-for>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3b rows that cannot be read -->
+    <div id="3b" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3b</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Monitors &#183; one row per reason it cannot be read</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">The muted line takes the place of the affordance</span>
+      </div>
+      <div style="width:1224px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden">
+        <sc-for list="{{ noReadRows }}" as="m" hint-placeholder-count="3">
+          <dc-import name="MonitorRow" row="{{ m }}" hint-size="100%,130px"></dc-import>
+        </sc-for>
+      </div>
+    </div>
+
+    <!-- 3c layout detail with an asleep monitor -->
+    <div id="3c" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3c</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Layout detail &#183; the asleep suffix</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">The block from <a href="#1d">1d</a>; nothing else on the detail changes</span>
+      </div>
+      <div style="width:1012px;display:flex;flex-direction:column;gap:10px;padding:20px 24px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+        <h3 style="margin:0;font-family:var(--display);font-size:15px;font-weight:600">Monitors in this layout</h3>
+        <div style="border:1px solid var(--line);border-radius:var(--r);overflow:hidden">
+          <sc-for list="{{ inLayoutAsleep }}" as="m" hint-placeholder-count="4">
+            <div style="display:grid;grid-template-columns:1fr 300px 108px;gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;align-items:center;gap:10px;min-width:0">
+                <span style="font-size:14px;font-weight:500;color:var(--ink)">{{ m.alias }}</span>
+                <span style="display:inline-flex;align-items:baseline;font-family:var(--data);font-size:11px;padding:2px 6px;border-radius:var(--r-sm);background:{{ m.stateBg }};color:{{ m.stateInk }}">{{ m.state }}<sc-if value="{{ m.asleep }}" hint-placeholder-val="{{ false }}"><span style="opacity:0.62">, asleep</span></sc-if></span>
+              </div>
+              <div style="font-size:12.5px;color:var(--ink-2);text-wrap:pretty">{{ m.hint }}</div>
+              <div style="display:flex;justify-content:flex-end">
+                <div style="display:flex;height:34px;border:1px solid var(--line-strong);border-radius:var(--r);overflow:hidden;font-size:12.5px">
+                  <div style="display:flex;align-items:center;padding:0 12px;background:{{ m.onBg }};color:{{ m.onInk }};font-weight:500">On</div>
+                  <div style="display:flex;align-items:center;padding:0 12px;background:{{ m.offBg }};color:{{ m.offInk }};border-left:1px solid var(--line-strong);font-weight:500">Off</div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3d send row, select open -->
+    <div id="3d" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3d</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Send row &#183; accepted inputs first</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Side accepts three inputs; the rest of the table follows, marked not declared</span>
+      </div>
+      <div style="width:1012px;min-height:430px;display:flex;flex-direction:column;gap:14px;padding:20px 24px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+        <div style="font-family:var(--data);font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-3)">Before the arrangement changes</div>
+        <div style="position:relative">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1.5px solid var(--accent);border-radius:var(--r);background:var(--accent-soft)">
+            <span style="font-family:var(--data);font-size:13px;color:var(--ink-2);cursor:grab">&#8801;</span>
+            <span style="font-family:var(--data);font-size:11px;color:var(--ink-2);width:14px">1</span>
+            <span style="font-size:14px;color:var(--ink)">Send</span>
+            <span style="display:flex;align-items:center;gap:10px;height:34px;padding:0 10px;border:1.5px solid var(--focus);border-radius:var(--r);background:var(--surface);font-size:13.5px;color:var(--ink);cursor:pointer">HDMI 1<span style="font-size:9px;color:var(--ink-3)">&#9660;</span></span>
+            <span style="font-size:14px;color:var(--ink)">to</span>
+            <select style="height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:13.5px;color:var(--ink)">
+              <option>Side</option><option>Ultrawide</option><option>Portrait</option><option>TV</option>
+            </select>
+            <span style="width:1px;height:26px;background:var(--accent-line)"></span>
+            <select style="height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--body);font-size:13.5px;color:var(--ink)">
+              <option>no wait</option><option selected="{{ true }}">until Side is Available</option>
+            </select>
+            <span style="font-size:14px;color:var(--ink)">, up to</span>
+            <input value="120" style="width:56px;height:34px;padding:0 8px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);font-family:var(--data);font-size:13px;color:var(--ink);text-align:right">
+            <span style="font-size:14px;color:var(--ink)">s</span>
+            <span style="flex:1"></span>
+            <span style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-sm);font-size:12px;color:var(--ink-2);cursor:pointer">&#10005;</span>
+          </div>
+          <div style="position:absolute;left:94px;top:calc(100% + 4px);width:284px;display:flex;flex-direction:column;padding:6px 0;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--r);box-shadow:0 14px 34px oklch(0.24 0.02 235 / 0.22);z-index:2">
+            <div style="padding:6px 12px 4px;font-family:var(--data);font-size:10px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-3)">Accepted by Side</div>
+            <sc-for list="{{ acceptedOpts }}" as="o" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px;padding:0 12px;background:{{ o.bg }};cursor:pointer" style-hover="background:var(--surface-2)">
+                <span style="font-size:13.5px;color:{{ o.ink }};font-weight:{{ o.weight }}">{{ o.label }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">{{ o.tag }}</span>
+              </div>
+            </sc-for>
+            <div style="height:1px;margin:6px 0;background:var(--line)"></div>
+            <sc-for list="{{ otherOpts }}" as="o" hint-placeholder-count="3">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:34px;padding:0 12px;cursor:pointer" style-hover="background:var(--surface-2)">
+                <span style="font-size:13.5px;color:var(--ink-2)">{{ o.label }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">not declared</span>
+              </div>
+            </sc-for>
+            <div style="height:1px;margin:6px 0;background:var(--line)"></div>
+            <div style="display:flex;align-items:center;min-height:34px;padding:0 12px;font-size:13.5px;color:var(--ink);cursor:pointer" style-hover="background:var(--surface-2)">Other code</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3e wake band -->
+    <div id="3e" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3e</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Switch progress &#183; the wake band</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">A monitor that can be woken shows the running row on the right instead</span>
+      </div>
+      <div style="display:flex;gap:24px;flex-wrap:wrap">
+        <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="margin:0;font-family:var(--display);font-size:17px;font-weight:600">Switching to Console</h3>
+            <span style="font-family:var(--data);font-size:12.5px;color:var(--ink-2)">28.4 s elapsed</span>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--warn);border-left:4px solid var(--warn);border-radius:var(--r);background:var(--warn-soft)">
+            <div style="font-family:var(--display);font-size:14.5px;font-weight:600;color:var(--ink)">Wake Ultrawide: press a button on it.</div>
+            <p style="margin:0;font-family:var(--data);font-size:12px;color:var(--ink-2)">Waiting until Ultrawide is awake &#183; 92 s left of 120 s</p>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ wakeSteps }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid {{ s.line }};border-radius:var(--r);background:{{ s.rowBg }}">
+                <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+                <span style="flex:1;font-size:13.5px;color:{{ s.textInk }}">{{ s.text }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">{{ s.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div>
+            <button style="height:44px;padding:0 18px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer" style-hover="border-color:var(--crit);color:var(--crit)">Cancel</button>
+          </div>
+        </div>
+        <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <h3 style="margin:0;font-family:var(--display);font-size:17px;font-weight:600">Switching to Console</h3>
+            <span style="font-family:var(--data);font-size:12.5px;color:var(--ink-2)">3.1 s elapsed</span>
+          </div>
+          <p style="margin:0;font-size:12.5px;color:var(--ink-3)">Ultrawide can be woken, so there is no band: the step runs and says so in the log.</p>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ wakeAutoSteps }}" as="s" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid {{ s.line }};border-radius:var(--r);background:{{ s.rowBg }}">
+                <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+                <span style="flex:1;font-size:13.5px;color:{{ s.textInk }}">{{ s.text }}</span>
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">{{ s.time }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);font-family:var(--data);font-size:11.5px;line-height:1.75;color:var(--ink-2);white-space:pre">11:54:12  Waking Ultrawide
+11:54:11  switch Console: 4 steps
+11:54:11  switch Console: started</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3f wake timeout -->
+    <div id="3f" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3f</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Switch failed &#183; the wake timed out</span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">What to do first, then the sends that did not run</span>
+      </div>
+      <div style="width:600px;display:flex;flex-direction:column;gap:14px;padding:20px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <h3 style="margin:0;font-family:var(--display);font-size:17px;font-weight:600">Console did not switch</h3>
+          <span style="font-family:var(--data);font-size:12.5px;color:var(--crit)">Stopped after 121.0 s</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border:1px solid var(--crit);border-left:4px solid var(--crit);border-radius:var(--r);background:var(--crit-soft)">
+          <div style="font-family:var(--display);font-size:14.5px;font-weight:600;color:var(--ink)">Wake Ultrawide, then switch again.</div>
+          <p style="margin:0;font-size:12.5px;color:var(--ink-2);text-wrap:pretty">Ultrawide stayed asleep for 120 s. These sends did not run: HDMI 1 to Ultrawide, DisplayPort to Side.</p>
+          <div style="display:flex;gap:10px;padding-top:2px">
+            <button style="height:44px;padding:0 18px;border:1px solid var(--accent);border-radius:var(--r);background:var(--accent);color:var(--accent-ink);font-family:var(--body);font-size:14px;font-weight:600;cursor:pointer" style-hover="background:var(--accent-hover)">Switch to Console again</button>
+            <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;cursor:pointer">Open log</button>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <sc-for list="{{ wakeFailSteps }}" as="s" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid {{ s.line }};border-radius:var(--r);background:{{ s.rowBg }}">
+              <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:2px 7px;border-radius:var(--r-sm);background:{{ s.bg }};color:{{ s.ink }};min-width:68px;text-align:center">{{ s.status }}</span>
+              <span style="flex:1;font-size:13.5px;color:{{ s.textInk }}">{{ s.text }}</span>
+              <span style="font-family:var(--data);font-size:11px;color:var(--ink-2)">{{ s.time }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3g dark -->
+    <div id="3g" style="display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;align-items:baseline;gap:12px">
+        <span style="font-family:var(--data);font-size:11px;font-weight:500;padding:3px 7px;border-radius:var(--r-sm);background:oklch(0.24 0.015 235);color:oklch(0.99 0 0)">3g</span>
+        <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Dark theme of <a href="#3a">3a</a></span>
+        <span style="font-size:13px;color:oklch(0.50 0.02 235)">Same markup, same token names &#183; frame drawn 1060 tall, as in <a href="#3a">3a</a></span>
+      </div>
+      <div data-theme="dark" style="width:1280px;height:1060px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.12 0.02 235 / 0.5)">
+        <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
+          <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
+          <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
+        </div>
+        <div style="flex:1;display:flex;min-height:0">
+          <dc-import name="Sidebar" selected="monitors" hint-size="212px,100%"></dc-import>
+          <main style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;padding:22px 28px 16px;border-bottom:1px solid var(--line)">
+              <div style="display:flex;flex-direction:column;gap:4px">
+                <h2 style="margin:0;font-family:var(--display);font-size:24px;font-weight:600;letter-spacing:-0.01em;color:var(--ink)">Monitors</h2>
+                <p style="margin:0;font-size:13px;color:var(--ink-2)">Five monitors connected. Aliases are yours; every other column is read from the hardware.</p>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;flex:none">
+                <span style="font-family:var(--data);font-size:11px;color:var(--ink-3)">Last probe 11:52</span>
+                <button style="height:44px;padding:0 16px;border:1px solid var(--line-strong);border-radius:var(--r);background:var(--surface);color:var(--ink);font-family:var(--body);font-size:14px;font-weight:500;cursor:pointer">Refresh</button>
+                <button disabled="{{ true }}" style="height:44px;padding:0 16px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface-2);color:var(--ink-3);font-family:var(--body);font-size:14px;font-weight:500;display:flex;align-items:center;gap:8px">
+                  <span style="width:10px;height:10px;border-radius:50%;border:2px solid var(--line-strong);border-top-color:var(--ink-3);animation:dcspin 0.9s linear infinite"></span>Re-checking
+                </button>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column">
+              <sc-for list="{{ capRows }}" as="m" hint-placeholder-count="5">
+                <dc-import name="MonitorRow" row="{{ m }}" hint-size="100%,150px"></dc-import>
+              </sc-for>
+            </div>
+          </main>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
 
 <section style="display:flex;flex-direction:column;gap:64px;padding:56px 64px 96px;font-family:var(--body)">
 
@@ -539,7 +807,7 @@ a:hover{color:var(--accent-hover);text-decoration:underline}
         <span style="font-family:var(--display);font-size:17px;font-weight:600;color:oklch(0.24 0.015 235)">Monitors</span>
         <span style="font-size:13px;color:oklch(0.50 0.02 235)">Active, Available not Active, Absent, and one without DDC-CI (Q2)</span>
       </div>
-      <div style="width:1280px;height:860px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
+      <div style="width:1280px;height:1060px;display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;box-shadow:0 18px 44px oklch(0.24 0.02 235 / 0.16)">
         <div style="display:flex;align-items:center;height:40px;flex:none;padding:0 12px;gap:9px;background:var(--surface-2);border-bottom:1px solid var(--line)">
           <div style="width:16px;height:16px;border-radius:var(--r-sm);background:var(--accent);display:flex;align-items:center;justify-content:center;font-family:var(--data);font-size:10px;color:var(--accent-ink)">L</div>
           <span style="font-size:12px;color:var(--ink-2)">layoutswap</span>
@@ -1213,6 +1481,93 @@ class Component extends DCLogic {
       },
     ];
 
+    const cap = (o) => ({
+      gpu: "RTX 4080", inputLine: "var(--line-strong)", inputBg: "var(--surface)", inputInk: "var(--ink-2)",
+      expandLabel: o.expanded ? "Hide capabilities" : "Show capabilities", ...o,
+    });
+    const modes = (list) => list.map((text) => ({ text }));
+
+    const capRows = [
+      cap({
+        alias: "Ultrawide", name: "Dell U4025QW", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Desk, Console, Meeting", connector: "DisplayPort 1", pos: "0,0", size: "3440\u00d71440 \u00b7 120 Hz",
+        input: "DisplayPort 1", inputLine: "var(--accent-line)", inputBg: "var(--accent-soft)", inputInk: "var(--accent)",
+        canExpand: true, expanded: true,
+        accepts: [chip("DisplayPort 1", "current"), chip("HDMI 1", "idle"), chip("HDMI 2", "idle"), chip("USB-C", "idle")],
+        wake: "Can be woken by the app", wakeInk: "var(--good)",
+        modes: modes(["3440 x 1440 at 60, 100, 120 Hz", "2560 x 1080 at 60, 100 Hz", "1920 x 1080 at 60, 100, 120, 144 Hz"]),
+        readAt: "Read on 11 Sep 2026, 11:52",
+      }),
+      cap({
+        alias: "Side", name: "LG 27GP850", state: "Active", asleep: true, editing: true, stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Desk, Console", connector: "HDMI 2", pos: "3440,180", size: "1920\u00d71080 \u00b7 60 Hz",
+        input: "HDMI 2", inputLine: "var(--accent-line)", inputBg: "var(--accent-soft)", inputInk: "var(--accent)",
+        canExpand: true,
+      }),
+      cap({
+        alias: "Studio", name: "Dell U2723QE", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Meeting", connector: "USB-C", pos: "\u22121920,0", size: "3840\u00d72160 \u00b7 60 Hz", input: "USB-C",
+        muted: "Reading capabilities", mutedInk: "var(--accent)", reading: true,
+      }),
+      cap({
+        alias: "Portrait", name: "Dell P2419H", state: "Available", stateBg: T.warn.bg, stateInk: T.warn.ink,
+        note: "Plugged in, Windows is not drawing to it", connector: "DisplayPort 2", pos: "\u2014", size: "1920\u00d71080 \u00b7 60 Hz", input: "DisplayPort 1",
+        muted: "Switch it on in Windows first", mutedInk: "var(--ink-3)",
+      }),
+      cap({
+        alias: "TV", name: "Samsung Q80", state: "Absent", stateBg: T.crit.bg, stateInk: T.crit.ink,
+        note: "Press its input button, then Refresh", connector: "HDMI 1", pos: "\u2014", size: "last seen 3840\u00d72160 \u00b7 60 Hz", input: "unknown",
+        muted: "Switch it on in Windows first", mutedInk: "var(--ink-3)",
+      }),
+    ];
+
+    const noReadRows = [
+      cap({
+        alias: "Portrait", name: "Dell P2419H", state: "Available", stateBg: T.warn.bg, stateInk: T.warn.ink,
+        note: "Plugged in, Windows is not drawing to it", connector: "DisplayPort 2", pos: "\u2014", size: "1920\u00d71080 \u00b7 60 Hz", input: "DisplayPort 1",
+        muted: "Switch it on in Windows first", mutedInk: "var(--ink-3)",
+      }),
+      cap({
+        alias: "TV", name: "Samsung Q80", state: "Absent", stateBg: T.crit.bg, stateInk: T.crit.ink,
+        note: "Press its input button, then Refresh", connector: "HDMI 1", pos: "\u2014", size: "last seen 3840\u00d72160 \u00b7 60 Hz", input: "unknown",
+        muted: "Does not answer over DDC-CI", mutedInk: "var(--ink-3)",
+      }),
+      cap({
+        alias: "Studio", name: "Dell U2723QE", state: "Active", stateBg: T.good.bg, stateInk: T.good.ink,
+        note: "In Meeting", connector: "USB-C", pos: "\u22121920,0", size: "3840\u00d72160 \u00b7 60 Hz", input: "USB-C",
+        muted: "Not read yet", mutedInk: "var(--ink-3)",
+      }),
+    ];
+
+    const inLayoutAsleep = inLayout.map((m, i) => (i === 1 ? { ...m, asleep: true, hint: "Asleep. It is woken before the switch sends its input." } : m));
+
+    const acceptedOpts = [
+      { label: "DisplayPort 1", tag: "(now)", bg: "var(--accent-soft)", ink: "var(--accent)", weight: "600" },
+      { label: "HDMI 1", tag: "", bg: "transparent", ink: "var(--ink)", weight: "400" },
+      { label: "HDMI 2", tag: "", bg: "transparent", ink: "var(--ink)", weight: "400" },
+    ];
+    const otherOpts = [{ label: "DisplayPort 2" }, { label: "USB-C" }, { label: "VGA" }];
+
+    const wakeSteps = [
+      progress("done", "Apply arrangement", "3.4 s"),
+      progress("needs you", "Wake Ultrawide", "28 s of 120 s"),
+      progress("waiting", "Send HDMI 1 to Ultrawide", ""),
+      progress("waiting", "Send DisplayPort to Side", ""),
+    ];
+    const wakeAutoSteps = [
+      progress("done", "Apply arrangement", "3.4 s"),
+      progress("running", "Wake Ultrawide", "1.2 s"),
+      progress("waiting", "Send HDMI 1 to Ultrawide", ""),
+      progress("waiting", "Send DisplayPort to Side", ""),
+    ];
+    const wakeFailSteps = [
+      progress("done", "Apply arrangement", "3.4 s"),
+      progress("failed", "Wake Ultrawide", "120 s"),
+      progress("skipped", "Send HDMI 1 to Ultrawide", ""),
+      progress("skipped", "Send DisplayPort to Side", ""),
+      progress("skipped", "Refresh RDP profiles", ""),
+    ];
+
     const skeleton = [
       { w1: "120px", w2: "160px" }, { w1: "84px", w2: "150px" }, { w1: "104px", w2: "140px" }, { w1: "70px", w2: "170px" },
     ];
@@ -1228,6 +1583,7 @@ class Component extends DCLogic {
     return {
       layouts, capture, arrangement, inLayout, stepsBefore, stepsAfter, audio, monitors, skeleton, result,
       audioGroups, rdpFiles, runSteps, needSteps, doneSteps, false: false,
+      capRows, noReadRows, inLayoutAsleep, acceptedOpts, otherOpts, wakeSteps, wakeAutoSteps, wakeFailSteps,
       createShortcut: this.props.createShortcutDefault ?? true,
       shortcutHint: "Goes to " + (loc === "Both" ? "the Desktop and the Start menu" : loc === "Start menu" ? "the Start menu" : "the Desktop") + ". Change the default in Settings.",
       true: true,

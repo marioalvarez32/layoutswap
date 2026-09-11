@@ -57,6 +57,12 @@ pub struct Monitor {
     pub input_source: Option<u32>,
     /// The input source's name from the fixed table, "Input 0x1E" for an unknown code.
     pub input_source_name: Option<String>,
+    /// The power mode as a VCP code 0xD6 value (1 awake, 2 standby, 4 off, 5 power
+    /// off), when DDC-CI answered that read. Windows keeps a sleeping monitor Active.
+    pub power_mode: Option<u32>,
+    /// Asleep: the monitor answered the power-mode read with anything but awake, so a
+    /// send to it would be swallowed. No answer, or an older probe, is never asleep.
+    pub asleep: bool,
     pub ddc_ci: DdcCi,
 }
 
@@ -202,6 +208,7 @@ fn monitor_from(r: &ReportMonitor) -> Monitor {
         DdcCi::NotRead
     };
     let input_source = (ddc_ci == DdcCi::Answered).then_some(r.input_source).flatten();
+    let power_mode = (ddc_ci == DdcCi::Answered).then_some(r.power_mode).flatten();
     Monitor {
         device_path: r.device_path.clone(),
         reported_name,
@@ -218,9 +225,14 @@ fn monitor_from(r: &ReportMonitor) -> Monitor {
         primary: has_mode && r.x == 0 && r.y == 0,
         input_source,
         input_source_name: input_source.map(input_source::name),
+        power_mode,
+        asleep: power_mode.is_some_and(|mode| mode != POWER_AWAKE),
         ddc_ci,
     }
 }
+
+/// VCP code 0xD6 reads 1 for a monitor that is awake; 2, 4 and 5 are its sleep states.
+const POWER_AWAKE: u32 = 1;
 
 const OUTPUT_INTERNAL: u32 = 0x8000_0000;
 
@@ -360,10 +372,11 @@ mod tests {
 
         // An older probe without the fields reads as not read.
         let older = FIVE_MONITORS
-            .replace(r#","inputSource":17,"ddcCi":"answered""#, "")
-            .replace(r#","inputSource":27,"ddcCi":"answered""#, "")
-            .replace(r#","inputSource":null,"ddcCi":"notAnswering""#, "")
-            .replace(r#","inputSource":null,"ddcCi":"notRead""#, "");
+            .replace(r#","inputSource":17,"powerMode":1,"ddcCi":"answered""#, "")
+            .replace(r#","inputSource":27,"powerMode":1,"ddcCi":"answered""#, "")
+            .replace(r#","inputSource":27,"powerMode":4,"ddcCi":"answered""#, "")
+            .replace(r#","inputSource":null,"powerMode":null,"ddcCi":"notAnswering""#, "")
+            .replace(r#","inputSource":null,"powerMode":null,"ddcCi":"notRead""#, "");
         assert!(!older.contains("ddcCi"));
         let inventory = parse(&older).unwrap();
         assert!(inventory.monitors.iter().all(|m| m.ddc_ci == DdcCi::NotRead));
@@ -376,6 +389,48 @@ mod tests {
         let inventory = parse(&odd).unwrap();
         assert_eq!(by_path(&inventory, "ACR0EC4").ddc_ci, DdcCi::NotRead);
         assert_eq!(by_path(&inventory, "AUS343F").ddc_ci, DdcCi::NotRead);
+    }
+
+    #[test]
+    fn reads_the_power_mode_only_where_ddc_ci_answered_and_derives_asleep() {
+        let inventory = parse(FIVE_MONITORS).unwrap();
+        let acer = by_path(&inventory, "ACR0EC4");
+        assert_eq!(acer.power_mode, Some(1));
+        assert!(!acer.asleep);
+        let mut panels: Vec<(Option<u32>, bool)> = inventory
+            .monitors
+            .iter()
+            .filter(|m| m.reported_name == "MSI MP165 E6")
+            .map(|m| (m.power_mode, m.asleep))
+            .collect();
+        panels.sort();
+        assert_eq!(panels, vec![(Some(1), false), (Some(4), true)]);
+        assert_eq!(by_path(&inventory, "EDO4245").power_mode, None);
+        assert_eq!(by_path(&inventory, "AUS343F").power_mode, None);
+
+        // A power mode from a monitor whose DDC-CI did not answer is dropped, and it
+        // is not asleep: the status decides, not the number.
+        let contradictory = FIVE_MONITORS.replace(
+            r#""powerMode":null,"ddcCi":"notAnswering""#,
+            r#""powerMode":4,"ddcCi":"notAnswering""#,
+        );
+        let inventory = parse(&contradictory).unwrap();
+        let built_in = by_path(&inventory, "EDO4245");
+        assert_eq!(built_in.power_mode, None);
+        assert!(!built_in.asleep);
+
+        // A monitor that answered the input read but not the power-mode read stays
+        // answered, with no power mode and not asleep; an older probe without the
+        // field reads the same.
+        let partial = FIVE_MONITORS.replacen(r#""powerMode":1,"#, r#""powerMode":null,"#, 1);
+        let inventory = parse(&partial).unwrap();
+        let acer = by_path(&inventory, "ACR0EC4");
+        assert_eq!(acer.ddc_ci, DdcCi::Answered);
+        assert_eq!(acer.power_mode, None);
+        assert!(!acer.asleep);
+        let older = FIVE_MONITORS.replace(r#""powerMode":1,"#, "").replace(r#""powerMode":4,"#, "");
+        let inventory = parse(&older).unwrap();
+        assert!(inventory.monitors.iter().all(|m| m.power_mode.is_none() && !m.asleep));
     }
 
     #[test]

@@ -162,13 +162,18 @@ namespace LayoutswapProbe {
         }
     }
 
-    // The current input source of each monitor under a GDI name, read over DDC-CI
-    // (VCP code 0x60) through its physical monitor handle. Every read starts on its
-    // own thread and the probe waits once for all of them, so silent monitors cost
-    // one timeout in total, not one each. A read that never returns keeps its handle
-    // until the process exits; nothing can cancel it. Only an active monitor has a
-    // GDI name, and a GDI name shared by several physical monitors (clone mode)
-    // cannot be told apart, so it reads as not answering rather than as a guess.
+    // The current input source (VCP code 0x60) and power mode (VCP code 0xD6) of each
+    // monitor under a GDI name, read over DDC-CI through its physical monitor handle.
+    // Windows keeps a sleeping monitor Active, so the power mode is the only way to
+    // tell that a send would be swallowed (docs/windows-behaviour.md). Every monitor's
+    // reads start on their own thread and the probe waits once for all of them, so
+    // silent monitors cost one timeout in total, not one each. Each thread fills a
+    // record the caller already holds, field by field, so a monitor that answered the
+    // input read and then hung on the power-mode read still reads as answered. A
+    // read that never returns keeps its handle until the process exits; nothing can
+    // cancel it. Only an active monitor has a GDI name, and a GDI name shared by
+    // several physical monitors (clone mode) cannot be told apart, so it reads as
+    // not answering rather than as a guess.
     public static class Ddc {
         [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
         struct PHYSICAL_MONITOR { public IntPtr h; [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string desc; }
@@ -177,38 +182,42 @@ namespace LayoutswapProbe {
         [DllImport("dxva2.dll")] static extern bool DestroyPhysicalMonitors(uint n, PHYSICAL_MONITOR[] arr);
         [DllImport("dxva2.dll")] static extern bool GetVCPFeatureAndVCPFeatureReply(IntPtr h, byte code, out uint type, out uint current, out uint max);
         const byte VCP_INPUT_SOURCE = 0x60;
+        const byte VCP_POWER_MODE = 0xD6;
 
-        public class Reading { public string Status = "notAnswering"; public uint Value; }
+        public class Reading { public string Status = "notAnswering"; public uint Value; public bool PowerAnswered; public uint Power; }
 
-        static Reading ReadNow(string gdi) {
-            var r = new Reading();
+        static void ReadInto(string gdi, Reading r) {
             IntPtr hMon = Dpi.FindByGdi(gdi);
-            if (hMon == IntPtr.Zero) return r;
+            if (hMon == IntPtr.Zero) return;
             uint n;
-            if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMon, out n) || n != 1) return r;
+            if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMon, out n) || n != 1) return;
             var arr = new PHYSICAL_MONITOR[n];
-            if (!GetPhysicalMonitorsFromHMONITOR(hMon, n, arr)) return r;
+            if (!GetPhysicalMonitorsFromHMONITOR(hMon, n, arr)) return;
             try {
                 uint t, cur, max;
-                if (GetVCPFeatureAndVCPFeatureReply(arr[0].h, VCP_INPUT_SOURCE, out t, out cur, out max)) {
-                    // MCCS 2.2 puts the input in the low byte; a monitor that answers in the
-                    // high byte instead is read there rather than as input zero.
-                    uint low = cur & 0xFF, high = (cur >> 8) & 0xFF;
-                    r.Status = "answered"; r.Value = low != 0 ? low : high;
+                // The input first: it is the read every monitor with DDC-CI answers, and
+                // the one the probe's status is about. The power mode is asked only of a
+                // monitor that answered it, so a silent panel costs one call, not two.
+                if (!GetVCPFeatureAndVCPFeatureReply(arr[0].h, VCP_INPUT_SOURCE, out t, out cur, out max)) return;
+                // MCCS 2.2 puts the input in the low byte; a monitor that answers in the
+                // high byte instead is read there rather than as input zero.
+                uint low = cur & 0xFF, high = (cur >> 8) & 0xFF;
+                r.Value = low != 0 ? low : high; r.Status = "answered";
+                uint pt, pcur, pmax;
+                if (GetVCPFeatureAndVCPFeatureReply(arr[0].h, VCP_POWER_MODE, out pt, out pcur, out pmax)) {
+                    r.Power = pcur & 0xFF; r.PowerAnswered = true;
                 }
             } finally { DestroyPhysicalMonitors(n, arr); }
-            return r;
         }
 
         public static Reading[] ReadAll(string[] gdis, int timeoutMs) {
-            var tasks = new System.Threading.Tasks.Task<Reading>[gdis.Length];
-            for (int i = 0; i < gdis.Length; i++) { string gdi = gdis[i]; tasks[i] = System.Threading.Tasks.Task.Factory.StartNew(() => ReadNow(gdi)); }
-            try { System.Threading.Tasks.Task.WaitAll(tasks, timeoutMs); } catch { }
             var results = new Reading[gdis.Length];
+            var tasks = new System.Threading.Tasks.Task[gdis.Length];
             for (int i = 0; i < gdis.Length; i++) {
-                var t = tasks[i];
-                results[i] = (t.Status == System.Threading.Tasks.TaskStatus.RanToCompletion) ? t.Result : new Reading();
+                string gdi = gdis[i]; var r = new Reading(); results[i] = r;
+                tasks[i] = System.Threading.Tasks.Task.Factory.StartNew(() => ReadInto(gdi, r));
             }
+            try { System.Threading.Tasks.Task.WaitAll(tasks, timeoutMs); } catch { }
             return results;
         }
     }
@@ -250,7 +259,7 @@ try {
                 outputTechnology = [int64]$r.OutputTechnology; connectorInstance = [int]$r.ConnectorInstance
                 active = $false; available = [bool]$r.Available; hasMode = $false
                 x = 0; y = 0; width = 0; height = 0; refreshNum = 0; refreshDen = 0; rotation = 0; dpi = 0
-                inputSource = $null; ddcCi = 'notRead'
+                inputSource = $null; powerMode = $null; ddcCi = 'notRead'
             }
         }
         $m = $byTarget[$key]
@@ -263,13 +272,16 @@ try {
         }
     }
 
-    # Every active monitor's input source, asked at once.
+    # Every active monitor's input source and power mode, asked at once.
     $asked = @($byTarget.Values | Where-Object { $_.active -and $_.gdiName })
     if ($asked.Count -gt 0) {
         $readings = [LayoutswapProbe.Ddc]::ReadAll([string[]]@($asked | ForEach-Object { $_.gdiName }), $DdcTimeoutMs)
         for ($i = 0; $i -lt $asked.Count; $i++) {
             $asked[$i].ddcCi = [string]$readings[$i].Status
-            if ($readings[$i].Status -eq 'answered') { $asked[$i].inputSource = [int64]$readings[$i].Value }
+            if ($readings[$i].Status -eq 'answered') {
+                $asked[$i].inputSource = [int64]$readings[$i].Value
+                if ($readings[$i].PowerAnswered) { $asked[$i].powerMode = [int64]$readings[$i].Power }
+            }
         }
     }
 

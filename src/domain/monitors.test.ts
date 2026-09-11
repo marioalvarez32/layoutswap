@@ -12,6 +12,7 @@ import {
   liveState,
   monitorDisplay,
   monitorStateNote,
+  stateLabel,
 } from './monitors';
 
 const panel = { devicePath: 'path-1', reportedName: 'MSI MP165 E6', connector: 'USB-C DisplayPort 2' };
@@ -67,6 +68,7 @@ describe('formatting', () => {
 describe('state copy', () => {
   it('explains Available and Absent, and says nothing for Active', () => {
     expect(monitorStateNote('Active')).toBe('');
+    expect(monitorStateNote('Active', true)).toContain('not showing a picture');
     expect(monitorStateNote('Available')).toContain('Windows is not drawing to it');
     expect(monitorStateNote('Absent')).toContain('press its input button');
   });
@@ -102,5 +104,14 @@ describe('liveState', () => {
     expect(liveState(inventory, inventory.monitors[0]!.devicePath)).toBe('Active');
     expect(liveState(inventory, 'never-seen')).toBe('Absent');
     expect(liveState(null, 'anything')).toBeNull();
+  });
+});
+
+describe('stateLabel', () => {
+  it('adds the asleep suffix to Active only', () => {
+    expect(stateLabel('Active', true)).toBe('Active, asleep');
+    expect(stateLabel('Active', false)).toBe('Active');
+    expect(stateLabel('Available', false)).toBe('Available');
+    expect(stateLabel('Absent', false)).toBe('Absent');
   });
 });

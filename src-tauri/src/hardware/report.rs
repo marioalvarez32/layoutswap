@@ -55,6 +55,10 @@ pub struct ReportMonitor {
     /// The current input source as VCP code 0x60 reports it, null when not read.
     #[serde(default)]
     pub input_source: Option<u32>,
+    /// The power mode as VCP code 0xD6 reports it (1 awake, 2 standby, 4 off, 5 power
+    /// off), null when the read did not answer or the probe predates it.
+    #[serde(default)]
+    pub power_mode: Option<u32>,
     /// `answered`, `notAnswering` or `notRead`; missing or unknown reads as not read.
     #[serde(default)]
     pub ddc_ci: String,

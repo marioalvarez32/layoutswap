@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia';
 import { computed, ref } from 'vue';
 import type { ApplyFailure, Inventory, Layout, MonitorState } from '@/domain/generated/types';
-import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote } from '@/domain/monitors';
+import { chipLabels, formatSpec, inLayoutHint, inputSourceTooltip, liveMonitor, liveState, monitorDisplay, monitorStateNote, stateLabel } from '@/domain/monitors';
 import { stepLabeller, AVAILABLE_WAIT_SECONDS_MAX, DROP_WAIT_SECONDS_MAX } from '@/domain/steps';
 import { describeCaptureTime } from '@/domain/time';
 import Button from '@/ui/Button.vue';
@@ -56,6 +56,7 @@ const monitors = computed(() =>
     const state = liveState(props.inventory, m.devicePath);
     const tone: Tone = state ? TONES[state] : 'mute';
     const live = liveMonitor(props.inventory, m.devicePath);
+    const isAsleep = live?.asleep ?? false;
     return {
       devicePath: m.devicePath,
       on: m.on,
@@ -64,8 +65,9 @@ const monitors = computed(() =>
       detail: display.detail,
       spec: formatSpec(m),
       state,
+      stateText: state ? stateLabel(state, isAsleep) : '',
       tone,
-      note: state ? monitorStateNote(state) : '',
+      note: state ? monitorStateNote(state, isAsleep) : '',
       hint: state ? inLayoutHint(display.label, m.on, state) : '',
       input: live?.inputSourceName ?? null,
       inputTooltip: live?.inputSource === null || live === null ? '' : inputSourceTooltip(live.inputSource),
@@ -245,7 +247,7 @@ const offMonitors = computed(() => withShortNames.value.filter((m) => !m.on));
               <span class="name">{{ m.label }}</span>
               <span class="detail">{{ m.detail }}</span>
               <Chip v-if="m.state" :tone="m.tone" :title="m.note">
-                {{ m.state }}
+                {{ m.stateText }}
               </Chip>
               <span v-if="m.input" class="input data" :title="m.inputTooltip">{{ m.input }}</span>
             </div>

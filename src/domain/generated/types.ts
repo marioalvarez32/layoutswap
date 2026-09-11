@@ -148,7 +148,17 @@ inputSource: number | null,
 /**
  * The input source's name from the fixed table, "Input 0x1E" for an unknown code.
  */
-inputSourceName: string | null, ddcCi: DdcCi, };
+inputSourceName: string | null, 
+/**
+ * The power mode as a VCP code 0xD6 value (1 awake, 2 standby, 4 off, 5 power
+ * off), when DDC-CI answered that read. Windows keeps a sleeping monitor Active.
+ */
+powerMode: number | null, 
+/**
+ * Asleep: the monitor answered the power-mode read with anything but awake, so a
+ * send to it would be swallowed. No answer, or an older probe, is never asleep.
+ */
+asleep: boolean, ddcCi: DdcCi, };
 
 /**
  * The glossary's three monitor states.

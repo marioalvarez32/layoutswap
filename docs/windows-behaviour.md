@@ -56,7 +56,10 @@ most timing defaults trace back to one of these.
   can be woken and powered off but not put in standby; the two MSI panels answer 1 but
   declare only D6(05), so they can be switched off this way but not woken; the built-in
   panel answers no VCP read at all. Windows has no per-monitor sleep flag: display
-  config keeps a sleeping monitor Active and Available.
+  config keeps a sleeping monitor Active and Available. The probe reads 0xD6 beside
+  the input source under the same budget, the layout detail shows the monitor as
+  "Active, asleep", and Check monitors logs it; a panel that answers the input read
+  but not this one is treated as awake.
 - **Windows can wake only the displays it turned off itself.** `SetThreadExecutionState`
   with `ES_DISPLAY_REQUIRED`, or a zero-distance `SendInput` mouse move, brings back
   displays the power plan switched off; neither reaches a monitor that put itself to

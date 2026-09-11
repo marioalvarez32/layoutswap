@@ -57,7 +57,7 @@ use crate::config::layouts::{
 };
 
 /// Bump on every change to a template's behaviour.
-pub const TEMPLATE_VERSION: u32 = 7;
+pub const TEMPLATE_VERSION: u32 = 8;
 
 /// The fixed rows of every switch, by name.
 pub const CHECK_ROW: &str = "Check monitors";

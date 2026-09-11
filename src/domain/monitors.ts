@@ -91,10 +91,10 @@ export function formatSpec(monitor: {
 }
 
 /** The one-line note the state chip carries (DESIGN.md, Q2). */
-export function monitorStateNote(state: MonitorState): string {
+export function monitorStateNote(state: MonitorState, isAsleep = false): string {
   switch (state) {
     case 'Active':
-      return '';
+      return isAsleep ? 'Asleep: not showing a picture, so a send to it would be swallowed until it wakes.' : '';
     case 'Available':
       return 'Plugged in and showing the PC, but Windows is not drawing to it.';
     case 'Absent':
@@ -123,6 +123,11 @@ export function inLayoutHint(label: string, on: boolean, state: MonitorState): s
 /** The latest probe's entry for a monitor, or null when the probe did not list it or has not run. */
 export function liveMonitor(inventory: Inventory | null, devicePath: string): Monitor | null {
   return inventory?.monitors.find((m) => m.devicePath === devicePath) ?? null;
+}
+
+/** The state chip's text: the state, with ", asleep" after Active when the monitor is. */
+export function stateLabel(state: MonitorState, isAsleep: boolean): string {
+  return state === 'Active' && isAsleep ? 'Active, asleep' : state;
 }
 
 /**

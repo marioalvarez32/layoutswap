@@ -206,6 +206,21 @@ describe('LayoutDetail', () => {
     expect(ultrawideRow.find('.on-off').text()).toBe('Off');
   });
 
+  it('reads Active, asleep for a monitor that reports sleep over DDC-CI', () => {
+    const inventory = inventoryFixture();
+    const msi = inventory.monitors.find((m) => m.devicePath === 'path-msi-2')!;
+    msi.ddcCi = 'answered';
+    msi.powerMode = 4;
+    msi.asleep = true;
+    const wrapper = mountDetail(inventory);
+    const rows = wrapper.findAll('.row');
+    const asleepRow = rows.find((r) => r.find('.detail').text() === 'USB-C DisplayPort 2')!;
+    expect(asleepRow.find('.chip').text()).toBe('Active, asleep');
+    expect(asleepRow.find('.chip').attributes('title')).toContain('not showing a picture');
+    const acer = rows.find((r) => r.text().includes('KG241Y X1'))!;
+    expect(acer.find('.chip').text()).toBe('Active');
+  });
+
   it('shows the current input source where DDC-CI answered', () => {
     const wrapper = mountDetail();
     const rows = wrapper.findAll('.row');

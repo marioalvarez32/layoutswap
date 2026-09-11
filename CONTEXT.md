@@ -26,6 +26,33 @@ One ordered action inside a switch, such as sending an input source to a monitor
 waiting for a monitor to become available.
 _Avoid_: action, hook, task
 
+**Timeline**:
+The ordered rows a switch runs through: Check monitors, the steps before the apply,
+Apply arrangement, the steps after it, Verify. The fixed rows cannot move; steps sit
+around them.
+_Avoid_: pipeline, sequence, plan
+
+**Wait rule**:
+What a send step waits for after sending the input source: nothing, the monitor
+dropping, or the monitor becoming Available within a timeout.
+_Avoid_: wait mode, wait strategy
+
+**Drop**:
+A monitor stopping being Available to Windows after its input source changed. Some
+monitors never drop; the apply is what turns them off.
+_Avoid_: disconnect, go dark, detach
+
+**Needs you**:
+A running row that is waiting for a physical action, such as pressing a monitor's
+input button, and says so with the seconds left.
+_Avoid_: blocked, user action required, prompt
+
+**Extend fallback**:
+Applying Windows Extend across every remaining monitor when the arrangement apply
+fails and a monitor is not Available, so no screen stays dark. A fallback that lands
+is still a failed switch.
+_Avoid_: safe mode, recovery, default topology
+
 **Arrangement**:
 Which connected monitors are on and where each one sits, as Windows Settings shows
 it. A layout captures one arrangement.

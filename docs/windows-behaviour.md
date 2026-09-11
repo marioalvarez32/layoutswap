@@ -27,6 +27,11 @@ most timing defaults trace back to one of these.
   the current LUID at apply time.
 - **Friendly names collide.** Two identical panels report the same EDID name. The
   device path is the only stable, unique identity for a monitor.
+- **A monitor answers DDC-CI only while Windows draws to it.** The physical monitor
+  handle comes from the GDI name, which exists only for an Active monitor. So an input
+  source is sent before the apply when the monitor is leaving and after it when the
+  monitor is coming back. The reference scripts settle 3 s after a monitor becomes
+  Available before applying, and 2 s after the apply before sending an input.
 - **Windows rejects an arrangement with a floating monitor.** Every active monitor
   must share an edge with the group that contains the primary.
 - **Apply returns numeric codes.** Error 87 usually means a monitor in the layout is

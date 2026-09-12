@@ -557,7 +557,7 @@ mod tests {
         assert!(text.contains("Write-Step 5 'done' 'Wait 10 seconds'"));
         assert!(text.contains("Write-Step $ApplyStep 'running' 'Apply arrangement'"));
         assert!(text.contains("Write-Step $VerifyStep 'done' 'Verify'"));
-        assert!(text.contains("    Write-Step 2 'running' 'Wait 3 seconds'\n    Start-Sleep -Seconds 3\n    Write-Step 2 'done'"), "{text}");
+        assert!(normalise(&text).contains("    Write-Step 2 'running' 'Wait 3 seconds'\n    Start-Sleep -Seconds 3\n    Write-Step 2 'done'"), "{text}");
         let wait_at = text.find("Write-Step 2 'running'").unwrap();
         let apply_at = text.find("Write-Step $ApplyStep 'running'").unwrap();
         let after_at = text.find("Write-Step 4 'running'").unwrap();
@@ -778,7 +778,8 @@ mod tests {
         let mut empty = layout("Empty", &five);
         empty.summary = Summary { monitors: vec![] };
         empty.arrangement = small_blob(0);
-        let text = render(&empty, &BTreeMap::new());
+        // Normalised: the template is CRLF on a checkout that honours .gitattributes.
+        let text = normalise(&render(&empty, &BTreeMap::new()));
         assert!(text.contains("$MonitorsOn    = @(\n\n)"));
     }
 

@@ -17,11 +17,11 @@ writeFileSync(tauriConf, `${JSON.stringify(conf, null, 2)}\n`);
 
 const cargoToml = 'src-tauri/Cargo.toml';
 const toml = readFileSync(cargoToml, 'utf8');
-const bumped = toml.replace(/^version = "[^"]*"/m, `version = "${version}"`);
-if (bumped === toml) {
+const versionLine = /^version = "[^"]*"/m;
+if (!versionLine.test(toml)) {
   console.error(`set-version: no version line found in ${cargoToml}`);
   process.exit(2);
 }
-writeFileSync(cargoToml, bumped);
+writeFileSync(cargoToml, toml.replace(versionLine, `version = "${version}"`));
 
 console.log(`set-version: ${tauriConf} and ${cargoToml} now say ${version}`);

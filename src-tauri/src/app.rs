@@ -222,6 +222,23 @@ impl App {
         self.store.update_window_size(size)
     }
 
+    /// Sets a monitor's alias (CONTEXT.md: Alias), trimmed; an empty one clears it.
+    /// Returns the whole alias map. Scripts print aliases in their log lines but are
+    /// not marked stale by this: the next Save or regenerate picks the alias up.
+    pub fn set_alias(&self, device_path: &str, alias: &str) -> Result<BTreeMap<String, String>, AppError> {
+        let alias = alias.trim();
+        let mut config = self.load_config()?;
+        if alias.is_empty() {
+            config.aliases.remove(device_path);
+            self.log(format!("alias: {device_path} cleared"));
+        } else {
+            config.aliases.insert(device_path.to_string(), alias.to_string());
+            self.log(format!("alias: {device_path} = {alias}"));
+        }
+        self.store.save(&config)?;
+        Ok(config.aliases)
+    }
+
     /// Capture: the latest probe becomes a layout with the given name, and its switch
     /// script is written. With `replace_id` the layout with that id is re-captured under
     /// the same id, keeping its steps, timings and fallback; without it, a name another
@@ -583,6 +600,33 @@ mod tests {
         assert!(fs::read_to_string(&path)
             .unwrap()
             .contains("# rendered second"));
+    }
+
+    #[test]
+    fn set_alias_stores_the_trimmed_alias_and_an_empty_one_clears_it() {
+        let (_dir, app) = app();
+        let aliases = app.set_alias("path-acer", "  Side  ").unwrap();
+        assert_eq!(aliases.get("path-acer").map(String::as_str), Some("Side"));
+        assert_eq!(app.load_config().unwrap().aliases, aliases);
+        let aliases = app.set_alias("path-acer", "Desk left").unwrap();
+        assert_eq!(aliases.get("path-acer").map(String::as_str), Some("Desk left"));
+        let aliases = app.set_alias("path-acer", "   ").unwrap();
+        assert!(!aliases.contains_key("path-acer"));
+        assert!(app.load_config().unwrap().aliases.is_empty());
+        let log = fs::read_to_string(app.app_log_path()).unwrap();
+        assert!(log.contains("alias: path-acer = Side"), "{log}");
+        assert!(log.contains("alias: path-acer cleared"), "{log}");
+    }
+
+    #[test]
+    fn an_alias_change_does_not_make_a_script_stale() {
+        let (_dir, app) = app();
+        app.probe().unwrap();
+        let layout = saved(app.capture("Desk", None).unwrap());
+        let acer = layout.summary.monitors.iter().find(|m| m.reported_name == "KG241Y X1").unwrap();
+        app.set_alias(&acer.device_path, "Side").unwrap();
+        let states = app.script_states().unwrap();
+        assert!(states.iter().all(|s| s.state == ScriptState::Current), "{states:?}");
     }
 
     #[test]

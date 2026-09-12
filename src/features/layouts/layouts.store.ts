@@ -5,6 +5,7 @@ import type { CaptureOutcome, InputSource, Inventory, Layout, LayoutEdits, Scrip
 import { toListItem, upsertLayout } from '@/domain/layouts';
 import { DEFAULT_EDITS, editsOf, isDirty } from '@/domain/steps';
 import { appendLog, applyProgress, newSwitchRun, type SwitchRun } from '@/domain/switch';
+import { formatProbeTime } from '@/domain/time';
 import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import {
   cancelSwitch as cancelSwitchScript,
@@ -21,6 +22,7 @@ import {
   saveDiagnostics as saveDiagnosticsZip,
   saveLayout as storeLayoutEdits,
   scriptStates as loadScriptStates,
+  setAlias,
   switchLayout,
 } from '@/tauri/commands';
 
@@ -38,6 +40,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const probing = ref(false);
   const loadError = ref<string | null>(null);
   const probeError = ref<string | null>(null);
+  const aliasError = ref<string | null>(null);
   /** The switch on screen: running, or finished until Back dismisses it. */
   const switchRun = ref<SwitchRun | null>(null);
   /** The fixed input source table, for the step editor. */
@@ -59,6 +62,8 @@ export const useLayoutsStore = defineStore('layouts', () => {
   const dirty = computed(() => draft.value !== null && isDraftDirty(draft.value.layoutId));
   /** The name of the layout with unsaved changes, for the dialog. */
   const dirtyLayoutName = computed(() => layouts.value.find((l) => l.id === draft.value?.layoutId)?.name ?? '');
+  /** When the probe last ran, as the sidebar and the Monitors screen show it, or null before the first. */
+  const lastProbe = computed(() => (inventory.value ? formatProbeTime(inventory.value.probedAt) : null));
 
   /** The layout being switched to while a script runs, so other Switch actions stand down. */
   const switching = computed(() => {
@@ -86,6 +91,16 @@ export const useLayoutsStore = defineStore('layouts', () => {
 
   async function refreshScriptStates() {
     scriptStatuses.value = await loadScriptStates();
+  }
+
+  /** Sets a monitor's alias (CONTEXT.md: Alias); an empty one clears it. */
+  async function renameMonitor(devicePath: string, alias: string) {
+    try {
+      aliases.value = await setAlias(devicePath, alias);
+      aliasError.value = null;
+    } catch (cause) {
+      aliasError.value = errorMessage(cause);
+    }
   }
 
   /** Runs the probe and keeps its result as the latest picture of the monitors. */
@@ -356,6 +371,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
     probing,
     loadError,
     probeError,
+    aliasError,
     switchRun,
     draft,
     dirty,
@@ -365,11 +381,13 @@ export const useLayoutsStore = defineStore('layouts', () => {
     transferNote,
     transferError,
     isEmpty,
+    lastProbe,
     listItems,
     selected,
     switching,
     load,
     probe,
+    renameMonitor,
     capture,
     recapture,
     editsFor,

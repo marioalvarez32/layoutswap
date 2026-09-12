@@ -68,6 +68,7 @@ pub fn run() {
             commands::load_config,
             commands::save_window_size,
             commands::probe,
+            commands::set_alias,
             commands::read_capabilities,
             commands::read_missing_capabilities,
             commands::capture_layout,

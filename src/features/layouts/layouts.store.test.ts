@@ -2,7 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, readMissingCapabilities, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, readMissingCapabilities, saveDiagnostics, saveLayout, scriptStates, setAlias, switchLayout } from '@/tauri/commands';
 import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
@@ -262,6 +262,20 @@ describe('layouts store: switch', () => {
     dirty();
     await store.capture('Desk', 'layout-desk');
     expect(store.dirty).toBe(false);
+  });
+
+  it('renames a monitor through the app and keeps the returned alias map', async () => {
+    const store = useLayoutsStore();
+    store.aliases = { 'path-acer': 'Side' };
+    vi.mocked(setAlias).mockResolvedValueOnce({ 'path-acer': 'Side', 'path-ultrawide': 'Big' });
+    await store.renameMonitor('path-ultrawide', 'Big');
+    expect(setAlias).toHaveBeenCalledWith('path-ultrawide', 'Big');
+    expect(store.aliases).toEqual({ 'path-acer': 'Side', 'path-ultrawide': 'Big' });
+    expect(store.aliasError).toBeNull();
+    vi.mocked(setAlias).mockRejectedValueOnce(new Error('Check that the config folder is writable.'));
+    await store.renameMonitor('path-acer', 'Left');
+    expect(store.aliasError).toContain('writable');
+    expect(store.aliases['path-acer']).toBe('Side');
   });
 
   it('asks for the first-sight capabilities read after every probe, without waiting for it', async () => {

@@ -41,6 +41,16 @@ pub async fn probe(state: State<'_, AppState>) -> Result<Inventory, AppError> {
     blocking(move || app.probe()).await
 }
 
+/// Sets or clears a monitor's alias and returns the alias map.
+#[tauri::command]
+pub fn set_alias(
+    state: State<'_, AppState>,
+    device_path: String,
+    alias: String,
+) -> Result<BTreeMap<String, String>, AppError> {
+    state.app.set_alias(&device_path, &alias)
+}
+
 /// Re-check: reads every Active monitor's capabilities and returns the stored map.
 #[tauri::command]
 pub async fn read_capabilities(

@@ -26,6 +26,7 @@ export function commandsMock(): typeof commands {
     saveWindowSize: vi.fn<typeof commands.saveWindowSize>().mockResolvedValue(undefined),
     isWindowMaximized: vi.fn<typeof commands.isWindowMaximized>().mockResolvedValue(false),
     probe: vi.fn<typeof commands.probe>().mockResolvedValue(inventoryFixture()),
+    setAlias: vi.fn<typeof commands.setAlias>().mockImplementation(async (devicePath, alias) => ({ [devicePath]: alias })),
     readCapabilities: vi.fn<typeof commands.readCapabilities>().mockResolvedValue({}),
     readMissingCapabilities: vi.fn<typeof commands.readMissingCapabilities>().mockResolvedValue(null),
     captureLayout: vi.fn<typeof commands.captureLayout>().mockResolvedValue({ outcome: 'saved', layout: layoutFixture() }),

@@ -5,6 +5,8 @@ import Button from '@/ui/Button.vue';
 withDefaults(defineProps<{
   layouts: LayoutListItem[];
   selectedId: string | null;
+  /** The pinned page in view, or null while a layout, the save page or nothing is. */
+  page?: 'monitors' | null;
   /** When the probe last ran, already formatted, or null when it has not run yet. */
   lastProbe: string | null;
   /** Export or import is in flight, so both items wait. */
@@ -13,6 +15,7 @@ withDefaults(defineProps<{
   transferNote?: string | null;
   transferError?: string | null;
 }>(), {
+  page: null,
   transferBusy: false,
   transferNote: null,
   transferError: null,
@@ -21,14 +24,15 @@ withDefaults(defineProps<{
 defineEmits<{
   save: [];
   select: [id: string];
+  open: [page: 'monitors'];
   export: [];
   import: [];
 }>();
 
-// The inventory screens are pinned so the navigation shape is final; their screens
-// come in later slices, so the items are visible but disabled. Export config and
-// Import config stand where Settings will go.
-const pinned = ['Monitors', 'Audio', 'Remote Desktop'] as const;
+// The inventory screens are pinned so the navigation shape is final. Monitors is
+// live; Audio and Remote Desktop come in later slices, visible but disabled. Export
+// config and Import config stand where Settings will go.
+const pinned = ['Audio', 'Remote Desktop'] as const;
 </script>
 
 <template>
@@ -60,6 +64,17 @@ const pinned = ['Monitors', 'Audio', 'Remote Desktop'] as const;
 
     <div class="bottom">
       <ul class="pinned">
+        <li>
+          <button
+            type="button"
+            class="pinned-item monitors"
+            :class="{ selected: page === 'monitors' }"
+            :aria-current="page === 'monitors' ? 'page' : undefined"
+            @click="$emit('open', 'monitors')"
+          >
+            Monitors
+          </button>
+        </li>
         <li v-for="item in pinned" :key="item">
           <button type="button" class="pinned-item" disabled>
             {{ item }}
@@ -228,6 +243,12 @@ ul {
 
 .pinned-item:hover:not(:disabled) {
   background: var(--surface-3);
+}
+
+.pinned-item.selected {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 .pinned-item:disabled {

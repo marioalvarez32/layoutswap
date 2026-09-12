@@ -8,14 +8,14 @@ import SaveLayoutPage from '@/features/layouts/SaveLayoutPage.vue';
 import Sidebar from '@/features/layouts/Sidebar.vue';
 import SwitchProgress from '@/features/layouts/SwitchProgress.vue';
 import { useLayoutsStore } from '@/features/layouts/layouts.store';
+import MonitorsScreen from '@/features/monitors/MonitorsScreen.vue';
 import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import { useUnsavedGuard } from '@/features/layouts/useUnsavedGuard';
 import { useWindowSize } from '@/features/settings/useWindowSize';
-import { formatProbeTime } from '@/domain/time';
 
 const layoutsStore = useLayoutsStore();
 const {
-  listItems, selectedId, selected, isEmpty, aliases, inventory, loadError, switchRun, resultActionBusy,
+  listItems, selectedId, selected, isEmpty, aliases, inventory, lastProbe, loadError, switchRun, resultActionBusy,
   transferBusy, transferNote, transferError,
 } = storeToRefs(layoutsStore);
 
@@ -24,8 +24,9 @@ const { error: windowSizeError } = useWindowSize();
 // The content area shows the Save current layout page, the switch progress of the
 // selected layout, the selected layout, or the first-run empty state.
 const savePageOpen = ref(false);
+// The pinned page in view; null shows the layouts content.
+const page = ref<'monitors' | null>(null);
 const switchOnScreen = computed(() => switchRun.value !== null && switchRun.value.layoutId === selectedId.value);
-const lastProbe = computed(() => (inventory.value ? formatProbeTime(inventory.value.probedAt) : null));
 const banner = computed(() => loadError.value ?? windowSizeError.value);
 
 // Leaving a layout with unsaved steps asks first; the move waits on the answer.
@@ -34,6 +35,14 @@ const unsaved = useUnsavedGuard();
 function openSave() {
   unsaved.guard(() => {
     savePageOpen.value = true;
+    page.value = null;
+  });
+}
+
+function openPage(next: 'monitors') {
+  unsaved.guard(() => {
+    page.value = next;
+    savePageOpen.value = false;
   });
 }
 
@@ -42,18 +51,20 @@ function closeSave() {
 }
 
 function onSelect(id: string) {
-  if (id === selectedId.value && !savePageOpen.value) {
+  if (id === selectedId.value && !savePageOpen.value && page.value === null) {
     return;
   }
   unsaved.guard(() => {
     layoutsStore.select(id);
     savePageOpen.value = false;
+    page.value = null;
   });
 }
 
 async function onImport() {
   await layoutsStore.importConfig();
   savePageOpen.value = false;
+  page.value = null;
 }
 
 onMounted(async () => {
@@ -67,13 +78,15 @@ onMounted(async () => {
   <div class="shell">
     <Sidebar
       :layouts="listItems"
-      :selected-id="savePageOpen ? null : selectedId"
+      :selected-id="savePageOpen || page ? null : selectedId"
+      :page="page"
       :last-probe="lastProbe"
       :transfer-busy="transferBusy"
       :transfer-note="transferNote"
       :transfer-error="transferError"
       @save="openSave"
       @select="onSelect"
+      @open="openPage"
       @export="layoutsStore.exportConfig"
       @import="onImport"
     />
@@ -90,7 +103,8 @@ onMounted(async () => {
       <p v-if="banner" class="alert" role="alert">
         {{ banner }}
       </p>
-      <SaveLayoutPage v-if="savePageOpen" @cancel="closeSave" @saved="closeSave" />
+      <MonitorsScreen v-if="page === 'monitors'" />
+      <SaveLayoutPage v-else-if="savePageOpen" @cancel="closeSave" @saved="closeSave" />
       <SwitchProgress
         v-else-if="switchOnScreen && switchRun"
         :run="switchRun"

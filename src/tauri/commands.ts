@@ -23,6 +23,11 @@ export function probe(): Promise<Inventory> {
   return invoke<Inventory>('probe');
 }
 
+/** Sets or clears a monitor's alias and returns the alias map. */
+export function setAlias(devicePath: string, alias: string): Promise<Record<string, string>> {
+  return invoke<Record<string, string>>('set_alias', { devicePath, alias });
+}
+
 /** Re-check: reads every Active monitor's capabilities and returns the stored map. */
 export function readCapabilities(): Promise<Record<string, Capabilities>> {
   return invoke<Record<string, Capabilities>>('read_capabilities');

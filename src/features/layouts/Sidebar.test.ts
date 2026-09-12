@@ -22,10 +22,13 @@ describe('Sidebar', () => {
       expect(wrapper.findAll('.row')).toHaveLength(0);
     });
 
-    it('pins the three inventory items disabled, then Export config and Import config enabled', async () => {
+    it('pins Monitors live, Audio and Remote Desktop disabled, then Export config and Import config enabled', async () => {
       const pinned = wrapper.findAll('.pinned-item');
       expect(pinned.map((b) => b.text())).toEqual(['Monitors', 'Audio', 'Remote Desktop', 'Export config', 'Import config']);
-      for (const item of pinned.slice(0, 3)) {
+      expect(wrapper.find('.monitors').attributes('disabled')).toBeUndefined();
+      await wrapper.find('.monitors').trigger('click');
+      expect(wrapper.emitted('open')).toEqual([['monitors']]);
+      for (const item of pinned.slice(1, 3)) {
         expect(item.attributes('disabled')).toBeDefined();
       }
       expect(wrapper.find('.export').attributes('disabled')).toBeUndefined();

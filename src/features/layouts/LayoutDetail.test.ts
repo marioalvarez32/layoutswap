@@ -217,6 +217,7 @@ describe('LayoutDetail', () => {
     const asleepRow = rows.find((r) => r.find('.detail').text() === 'USB-C DisplayPort 2')!;
     expect(asleepRow.find('.chip').text()).toBe('Active, asleep');
     expect(asleepRow.find('.chip').attributes('title')).toContain('not showing a picture');
+    expect(asleepRow.find('.hint').text()).toBe('Asleep. It is woken before the switch sends its input.');
     const acer = rows.find((r) => r.text().includes('KG241Y X1'))!;
     expect(acer.find('.chip').text()).toBe('Active');
   });

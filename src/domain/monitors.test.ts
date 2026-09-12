@@ -80,6 +80,12 @@ describe('state copy', () => {
     expect(inLayoutHint('Side', false, 'Available')).toContain('Save current layout again');
     expect(inLayoutHint('Side', true, 'Active')).toBe('');
   });
+
+  it('tells an asleep on monitor that the switch wakes it before sending', () => {
+    expect(inLayoutHint('Side', true, 'Active', true)).toBe('Asleep. It is woken before the switch sends its input.');
+    expect(inLayoutHint('Side', false, 'Active', true)).toBe('');
+    expect(inLayoutHint('Side', true, 'Active', false)).toBe('');
+  });
 });
 
 describe('liveMonitor', () => {

@@ -106,9 +106,9 @@ export function monitorStateNote(state: MonitorState, isAsleep = false): string 
  * What the live state means for a monitor in a layout, with the physical action first
  * when one is needed. Empty when nothing needs saying.
  */
-export function inLayoutHint(label: string, on: boolean, state: MonitorState): string {
+export function inLayoutHint(label: string, on: boolean, state: MonitorState, isAsleep = false): string {
   if (state === 'Active') {
-    return '';
+    return on && isAsleep ? 'Asleep. It is woken before the switch sends its input.' : '';
   }
   if (state === 'Available') {
     return on

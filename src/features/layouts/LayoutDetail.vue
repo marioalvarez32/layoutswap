@@ -68,7 +68,7 @@ const monitors = computed(() =>
       stateText: state ? stateLabel(state, isAsleep) : '',
       tone,
       note: state ? monitorStateNote(state, isAsleep) : '',
-      hint: state ? inLayoutHint(display.label, m.on, state) : '',
+      hint: state ? inLayoutHint(display.label, m.on, state, isAsleep) : '',
       input: live?.inputSourceName ?? null,
       inputTooltip: live?.inputSource === null || live === null ? '' : inputSourceTooltip(live.inputSource),
     };

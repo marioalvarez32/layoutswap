@@ -21,7 +21,17 @@ function send(id: string, side: Step['side'], devicePath: string, inputSource: n
 const STEPS: Step[] = [wait('a', 'before', 3), wait('b', 'before', 5), wait('c', 'after', 1)];
 const layout = layoutFixture();
 const labelOf = stepLabeller({ 'path-ultrawide': 'Ultrawide' }, layout.summary.monitors);
-const monitors = layout.summary.monitors.map((m) => ({ devicePath: m.devicePath, label: labelOf(m.devicePath), on: m.on, currentInput: m.devicePath === 'path-acer' ? 0x11 : null }));
+const monitors = layout.summary.monitors.map((m) => ({
+  devicePath: m.devicePath,
+  label: labelOf(m.devicePath),
+  on: m.on,
+  currentInput: m.devicePath === 'path-acer' ? 0x11 : null,
+  capabilities: m.devicePath === 'path-acer'
+    ? { readAt: '2026-09-11T11:52:00-05:00', answered: true, inputCodes: [0x11, 0x12], powerModes: [1], modes: [], raw: '' }
+    : m.devicePath === 'path-msi-1'
+      ? { readAt: '2026-09-11T11:52:00-05:00', answered: true, inputCodes: [0x0f], powerModes: [5], modes: [], raw: '' }
+      : null,
+}));
 
 function mountEditor(steps: Step[]) {
   return mount(StepsEditor, {
@@ -98,13 +108,29 @@ describe('StepsEditor', () => {
   it('edits a send step: input with the current one marked, monitor, wait rule with its timeout', async () => {
     const wrapper = mountEditor([send('s', 'before', 'path-acer', 0x0f)]);
     await wrapper.find('.sentence').trigger('click');
+    // The Acer declares HDMI 1 and HDMI 2, so those lead under its name and the rest
+    // of the table follows as not declared; Other code stays last, outside the groups.
+    const groups = wrapper.findAll('select.input optgroup');
+    expect(groups.map((g) => g.attributes('label'))).toEqual(['Accepted by KG241Y X1', 'Not declared by KG241Y X1']);
+    expect(groups[0]!.findAll('option').map((o) => o.text())).toEqual(['HDMI 1 (now)', 'Input 0x12']);
+    expect(groups[1]!.findAll('option').map((o) => o.text())).toEqual(['DisplayPort 1']);
     const inputOptions = wrapper.findAll('select.input option').map((o) => o.text());
-    expect(inputOptions).toEqual(['DisplayPort 1', 'HDMI 1 (now)', 'Other code']);
+    expect(inputOptions).toEqual(['HDMI 1 (now)', 'Input 0x12', 'DisplayPort 1', 'Other code']);
     await wrapper.find('select.input').setValue('17');
     expect(lastChange(wrapper)[0]).toMatchObject({ inputSource: 0x11 });
     expect(wrapper.findAll('select.monitor option').map((o) => o.text())).toContain('Ultrawide (off in this layout)');
     await wrapper.find('select.monitor').setValue('path-ultrawide');
     expect(lastChange(wrapper)[0]).toMatchObject({ devicePath: 'path-ultrawide' });
+    // The MSI panel declares DisplayPort 1 only, so the groups follow the monitor.
+    await wrapper.setProps({ steps: [send('s', 'before', 'path-msi-1', 0x11)] });
+    const msiGroups = wrapper.findAll('select.input optgroup');
+    expect(msiGroups.map((g) => g.attributes('label'))).toEqual(['Accepted by MSI MP165 E6 · USB-C DisplayPort 1', 'Not declared by MSI MP165 E6 · USB-C DisplayPort 1']);
+    expect(msiGroups[0]!.findAll('option').map((o) => o.text())).toEqual(['DisplayPort 1']);
+    expect(msiGroups[1]!.findAll('option').map((o) => o.text())).toEqual(['HDMI 1']);
+    // The ultrawide has no capabilities, so its list is the plain table again.
+    await wrapper.setProps({ steps: [send('s', 'before', 'path-ultrawide', 0x11)] });
+    expect(wrapper.findAll('select.input optgroup')).toHaveLength(0);
+    expect(wrapper.findAll('select.input option').map((o) => o.text())).toEqual(['DisplayPort 1', 'HDMI 1', 'Other code']);
     await wrapper.find('select.wait').setValue('drop');
     expect(lastChange(wrapper)[0]).toMatchObject({ wait: 'drop' });
     await wrapper.setProps({ steps: [send('s', 'before', 'path-ultrawide', 0x11, 'drop')] });

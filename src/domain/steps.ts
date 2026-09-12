@@ -1,4 +1,4 @@
-import type { InputSource, Layout, LayoutEdits, Step, StepSide, SummaryMonitor, WaitRule } from '@/domain/generated/types';
+import type { Capabilities, InputSource, Layout, LayoutEdits, Step, StepSide, SummaryMonitor, WaitRule } from '@/domain/generated/types';
 import { monitorDisplay, chipLabels } from './monitors';
 
 /** The bounds a wait step keeps, the same as the Rust side enforces on save. */
@@ -23,6 +23,33 @@ export type LabelOf = (devicePath: string) => string;
 /** "HDMI 1" for a known code, "Input 0x1E" for any other, as the Rust side names them. */
 export function inputSourceName(table: readonly InputSource[], code: number): string {
   return table.find((s) => s.code === code)?.name ?? `Input 0x${code.toString(16).toUpperCase().padStart(2, '0')}`;
+}
+
+/** The input select's two groups when the monitor's capabilities are known. */
+export interface InputSourceGroups {
+  /** The inputs the monitor declares, in the table's order, then any code the table lacks. */
+  accepted: InputSource[];
+  /** The rest of the table, offered as not declared: a monitor may accept them anyway. */
+  others: InputSource[];
+}
+
+/**
+ * Orders the input table for a monitor from its capabilities: accepted inputs first,
+ * the rest after. Null without an entry, one that did not answer, or one that
+ * declares no input at all, so the select stays the plain table.
+ */
+export function inputSourceGroups(table: readonly InputSource[], capabilities: Capabilities | null): InputSourceGroups | null {
+  if (!capabilities?.answered || capabilities.inputCodes.length === 0) {
+    return null;
+  }
+  const declared = new Set(capabilities.inputCodes);
+  const accepted = table.filter((s) => declared.has(s.code));
+  for (const code of capabilities.inputCodes) {
+    if (!table.some((s) => s.code === code)) {
+      accepted.push({ code, name: inputSourceName(table, code) });
+    }
+  }
+  return { accepted, others: table.filter((s) => !declared.has(s.code)) };
 }
 
 /**

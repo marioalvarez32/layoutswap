@@ -10,6 +10,7 @@ import {
   checkWaitSeconds,
   editsOf,
   formatInputCode,
+  inputSourceGroups,
   inputSourceName,
   isDirty,
   moveStep,
@@ -52,6 +53,36 @@ describe('stepSentence', () => {
     expect(stepSentence(send('s', 'before', 'path-ultrawide', 0x11, 'drop'), labelOf, TABLE)).toBe('Send HDMI 1 to Ultrawide, then wait until Ultrawide shows HDMI 1 or drops');
     expect(stepSentence(send('s', 'after', 'path-ultrawide', 0x0f, 'available'), labelOf, TABLE)).toBe('Send DisplayPort 1 to Ultrawide, then wait until Ultrawide is Available');
     expect(stepSentence(send('s', 'after', 'gone', 0x1e), labelOf, TABLE)).toBe('Send Input 0x1E to unknown monitor');
+  });
+});
+
+describe('inputSourceGroups', () => {
+  const entry = (inputCodes: number[], answered = true) => ({
+    readAt: '2026-09-11T11:52:00-05:00', answered, inputCodes, powerModes: [1], modes: [], raw: '',
+  });
+
+  const THREE: InputSource[] = [...TABLE, { code: 0x12, name: 'HDMI 2' }];
+
+  it('puts the accepted inputs first in table order and the rest after, as not declared', () => {
+    const groups = inputSourceGroups(THREE, entry([0x11, 0x0f]));
+    // Table order, not declaration order.
+    expect(groups?.accepted.map((s) => s.name)).toEqual(['DisplayPort 1', 'HDMI 1']);
+    expect(groups?.others.map((s) => s.name)).toEqual(['HDMI 2']);
+    const one = inputSourceGroups(THREE, entry([0x12]));
+    expect(one?.accepted.map((s) => s.name)).toEqual(['HDMI 2']);
+    expect(one?.others.map((s) => s.name)).toEqual(['DisplayPort 1', 'HDMI 1']);
+  });
+
+  it('names an accepted code the table lacks and keeps it in the first group', () => {
+    const groups = inputSourceGroups(TABLE, entry([0x1e, 0x11]));
+    expect(groups?.accepted.map((s) => s.name)).toEqual(['HDMI 1', 'Input 0x1E']);
+    expect(groups?.accepted.map((s) => s.code)).toEqual([0x11, 0x1e]);
+  });
+
+  it('leaves the table alone without an entry, or with one that did not answer', () => {
+    expect(inputSourceGroups(TABLE, null)).toBeNull();
+    expect(inputSourceGroups(TABLE, entry([0x11], false))).toBeNull();
+    expect(inputSourceGroups(TABLE, entry([]))).toBeNull();
   });
 });
 

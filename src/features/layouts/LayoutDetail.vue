@@ -9,6 +9,7 @@ import Button from '@/ui/Button.vue';
 import Chip from '@/ui/Chip.vue';
 import ArrangementSchematic from './ArrangementSchematic.vue';
 import StepsEditor from './StepsEditor.vue';
+import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import { useLayoutsStore } from './layouts.store';
 import { useLayoutEditor } from './useLayoutEditor';
 import { useLayoutScript } from './useLayoutScript';
@@ -25,6 +26,7 @@ const script = useLayoutScript(() => props.layout.id);
 const switchAction = useSwitchLayout(() => props.layout.id);
 const editor = useLayoutEditor(() => props.layout.id);
 const { inputSources } = storeToRefs(useLayoutsStore());
+const { capabilities } = storeToRefs(useMonitorsStore());
 
 // The send step names monitors by the layout's label rule and marks their current input.
 const labelOf = computed(() => stepLabeller(props.aliases, props.layout.summary.monitors));
@@ -33,6 +35,7 @@ const stepMonitors = computed(() => props.layout.summary.monitors.map((m) => ({
   label: labelOf.value(m.devicePath),
   on: m.on,
   currentInput: liveMonitor(props.inventory, m.devicePath)?.inputSource ?? null,
+  capabilities: capabilities.value[m.devicePath] ?? null,
 })));
 const stepsEditor = ref<InstanceType<typeof StepsEditor> | null>(null);
 

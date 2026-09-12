@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import type { InputSource, Step, WaitRule } from '@/domain/generated/types';
+import type { Capabilities, InputSource, Step, WaitRule } from '@/domain/generated/types';
 import {
   checkInputCode,
   checkWaitSeconds,
   formatInputCode,
+  inputSourceGroups,
   parseInputCode,
   stepSentence,
   waitRuleHint,
@@ -23,6 +24,8 @@ export interface StepMonitor {
   on: boolean;
   /** The input source it shows now, when the probe knows. */
   currentInput: number | null;
+  /** What it declared it can do, when read; null keeps the input list plain. */
+  capabilities: Capabilities | null;
 }
 
 const props = defineProps<{
@@ -62,6 +65,24 @@ const currentInputOf = computed(() => {
   const send = sendStep.value;
   return send ? props.monitors.find((m) => m.devicePath === send.devicePath)?.currentInput ?? null : null;
 });
+// The input list as the select shows it: grouped under the monitor's name by what it
+// declares when that is known, else the plain table under no heading.
+const inputOptionGroups = computed((): { label: string | null; sources: InputSource[] }[] => {
+  const send = sendStep.value;
+  const monitor = send ? props.monitors.find((m) => m.devicePath === send.devicePath) : undefined;
+  const groups = inputSourceGroups(props.inputSources, monitor?.capabilities ?? null);
+  if (!groups || !send) {
+    return [{ label: null, sources: [...props.inputSources] }];
+  }
+  const name = props.labelOf(send.devicePath);
+  return [
+    { label: `Accepted by ${name}`, sources: groups.accepted },
+    { label: `Not declared by ${name}`, sources: groups.others },
+  ].filter((g) => g.sources.length > 0);
+});
+function inputOptionText(source: InputSource): string {
+  return `${source.name}${source.code === currentInputOf.value ? ' (now)' : ''}`;
+}
 const monitorKnown = computed(() => {
   const send = sendStep.value;
   return send !== null && props.monitors.some((m) => m.devicePath === send.devicePath);
@@ -180,13 +201,18 @@ const inputSelectValue = computed(() => (sendStep.value && !showOther.value ? St
           <label class="field">
             <span>Send</span>
             <select class="input" :value="inputSelectValue" @change="setInput(($event.target as HTMLSelectElement).value)">
-              <option
-                v-for="source in inputSources"
-                :key="source.code"
-                :value="String(source.code)"
-              >
-                {{ source.name }}{{ source.code === currentInputOf ? ' (now)' : '' }}
-              </option>
+              <template v-for="group in inputOptionGroups" :key="group.label ?? 'table'">
+                <optgroup v-if="group.label" :label="group.label">
+                  <option v-for="source in group.sources" :key="source.code" :value="String(source.code)">
+                    {{ inputOptionText(source) }}
+                  </option>
+                </optgroup>
+                <template v-else>
+                  <option v-for="source in group.sources" :key="source.code" :value="String(source.code)">
+                    {{ inputOptionText(source) }}
+                  </option>
+                </template>
+              </template>
               <option :value="OTHER">
                 Other code
               </option>

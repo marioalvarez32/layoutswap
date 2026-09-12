@@ -91,19 +91,16 @@ impl App {
         Ok(path)
     }
 
-    /// Reads every Active monitor's capabilities now and stores them, replacing the
-    /// entries it read (CONTEXT.md: Re-check). Returns the whole stored map. A failed
-    /// read leaves the stored entries as they were and is logged.
+    /// Re-check: reads every Active monitor's capabilities now and stores them,
+    /// replacing the entries it read (CONTEXT.md: Re-check). Returns the whole stored
+    /// map. A failed read leaves the stored entries as they were and is logged. This is
+    /// the only time capabilities are read: the requests stall the desktop while they
+    /// run (docs/windows-behaviour.md), so nothing reads them on its own.
     pub fn read_capabilities(&self) -> Result<BTreeMap<String, Capabilities>, AppError> {
         let _reading = self
             .capabilities_read
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
-        self.read_capabilities_locked()
-    }
-
-    /// The read itself; the caller holds `capabilities_read`.
-    fn read_capabilities_locked(&self) -> Result<BTreeMap<String, Capabilities>, AppError> {
         let entries = match hardware::capabilities::read(
             self.runner.as_ref(),
             &self.capabilities_script_path(),
@@ -128,31 +125,6 @@ impl App {
         config.capabilities.extend(entries);
         self.store.save(&config)?;
         Ok(config.capabilities)
-    }
-
-    /// First sight: reads capabilities when the latest probe shows an Active monitor
-    /// without an entry, else does nothing and returns None. The app calls this after
-    /// every probe, off the window's path, so the start never waits for it.
-    pub fn read_missing_capabilities(
-        &self,
-    ) -> Result<Option<BTreeMap<String, Capabilities>>, AppError> {
-        // Decided under the lock: a second Refresh that arrives while the first read
-        // runs finds the entries stored and reads nothing.
-        let _reading = self
-            .capabilities_read
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
-        let Some(inventory) = self.last_probe().clone() else {
-            return Ok(None);
-        };
-        let known = self.load_config()?.capabilities;
-        let missing = inventory.monitors.iter().any(|m| {
-            m.state == hardware::MonitorState::Active && !known.contains_key(&m.device_path)
-        });
-        if !missing {
-            return Ok(None);
-        }
-        self.read_capabilities_locked().map(Some)
     }
 
     /// Runs the probe, remembers the result for the next capture, and keeps a copy on
@@ -640,11 +612,11 @@ mod tests {
     }
 
     #[test]
-    fn a_probe_that_shows_a_monitor_without_capabilities_triggers_one_read_that_stores_every_entry() {
+    fn re_check_reads_every_active_monitor_and_stores_every_entry() {
         let (_dir, app, runner) = app_with_runner();
-        assert!(app.read_missing_capabilities().unwrap().is_none(), "nothing to read before a probe");
         app.probe().unwrap();
-        let stored = app.read_missing_capabilities().unwrap().expect("a read ran");
+        assert_eq!(capability_runs(&runner), 0, "nothing reads capabilities on its own");
+        let stored = app.read_capabilities().unwrap();
         assert_eq!(capability_runs(&runner), 1);
         assert_eq!(stored.len(), 5);
         let config = app.load_config().unwrap();
@@ -658,20 +630,10 @@ mod tests {
     }
 
     #[test]
-    fn a_probe_whose_active_monitors_all_have_capabilities_triggers_no_read() {
+    fn re_check_replaces_the_entries_it_read() {
         let (_dir, app, runner) = app_with_runner();
         app.probe().unwrap();
-        app.read_missing_capabilities().unwrap();
-        app.probe().unwrap();
-        assert!(app.read_missing_capabilities().unwrap().is_none());
-        assert_eq!(capability_runs(&runner), 1);
-    }
-
-    #[test]
-    fn re_check_reads_regardless_and_replaces_the_entries() {
-        let (_dir, app, runner) = app_with_runner();
-        app.probe().unwrap();
-        app.read_missing_capabilities().unwrap();
+        app.read_capabilities().unwrap();
         runner.set_stdout_for(CAPABILITIES_SCRIPT_NAME, &CAPABILITIES.replace("D6(01 02 04 05)", "D6(05)"));
         let again = app.read_capabilities().unwrap();
         assert_eq!(capability_runs(&runner), 2);

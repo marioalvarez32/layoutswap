@@ -28,7 +28,6 @@ export function commandsMock(): typeof commands {
     probe: vi.fn<typeof commands.probe>().mockResolvedValue(inventoryFixture()),
     setAlias: vi.fn<typeof commands.setAlias>().mockImplementation(async (devicePath, alias) => ({ [devicePath]: alias })),
     readCapabilities: vi.fn<typeof commands.readCapabilities>().mockResolvedValue({}),
-    readMissingCapabilities: vi.fn<typeof commands.readMissingCapabilities>().mockResolvedValue(null),
     captureLayout: vi.fn<typeof commands.captureLayout>().mockResolvedValue({ outcome: 'saved', layout: layoutFixture() }),
     saveLayout: vi.fn<typeof commands.saveLayout>().mockImplementation(async (_id, edits) => ({ ...layoutFixture(), ...edits })),
     scriptStates: vi.fn<typeof commands.scriptStates>().mockResolvedValue([]),

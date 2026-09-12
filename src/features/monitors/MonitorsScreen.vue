@@ -72,6 +72,10 @@ async function saveAlias(devicePath: string, alias: string) {
         </Button>
       </div>
     </header>
+    <p class="cost">
+      Re-check reads what every Active monitor can do over DDC-CI. The desktop stutters for
+      about 15 seconds while it runs, so nothing reads capabilities unless you press it.
+    </p>
     <p v-if="error" class="alert" role="alert">
       {{ error }}
     </p>
@@ -156,6 +160,15 @@ async function saveAlias(devicePath: string, alias: string) {
   to {
     transform: rotate(360deg);
   }
+}
+
+.cost {
+  margin: 0;
+  padding: var(--space-3) var(--space-7);
+  border-bottom: var(--hairline) solid var(--line);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: var(--text-sm);
 }
 
 .alert {

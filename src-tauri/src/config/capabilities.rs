@@ -1,6 +1,6 @@
-//! Capabilities: what a monitor declared it can do, read on first sight and on
-//! re-check and kept by device path (CONTEXT.md: Capabilities). The entry is what
-//! the app stores; how it is read is the hardware module's business.
+//! Capabilities: what a monitor declared it can do, read on Re-check and kept by
+//! device path (CONTEXT.md: Capabilities). The entry is what the app stores; how it
+//! is read is the hardware module's business.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;

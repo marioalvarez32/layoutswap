@@ -109,9 +109,6 @@ export const useLayoutsStore = defineStore('layouts', () => {
     try {
       inventory.value = await runProbe();
       probeError.value = null;
-      // First sight: a monitor without capabilities gets them read now, in the
-      // background; the probe itself never waits for it.
-      void useMonitorsStore().readMissing();
     } catch (cause) {
       probeError.value = errorMessage(cause);
     } finally {

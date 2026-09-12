@@ -2,8 +2,7 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, readMissingCapabilities, saveDiagnostics, saveLayout, scriptStates, setAlias, switchLayout } from '@/tauri/commands';
-import { useMonitorsStore } from '@/features/monitors/monitors.store';
+import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, saveDiagnostics, saveLayout, scriptStates, setAlias, switchLayout } from '@/tauri/commands';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -276,15 +275,6 @@ describe('layouts store: switch', () => {
     await store.renameMonitor('path-acer', 'Left');
     expect(store.aliasError).toContain('writable');
     expect(store.aliases['path-acer']).toBe('Side');
-  });
-
-  it('asks for the first-sight capabilities read after every probe, without waiting for it', async () => {
-    const store = useLayoutsStore();
-    vi.mocked(readMissingCapabilities).mockResolvedValueOnce({ 'path-acer': { readAt: 'x', answered: true, inputCodes: [0x11], powerModes: [1], modes: [], raw: '' } });
-    await store.probe();
-    expect(readMissingCapabilities).toHaveBeenCalledTimes(1);
-    await flushPromises();
-    expect(Object.keys(useMonitorsStore().capabilities)).toEqual(['path-acer']);
   });
 
   it('re-captures a layout from a fresh probe under its own id, unless it has unsaved edits', async () => {

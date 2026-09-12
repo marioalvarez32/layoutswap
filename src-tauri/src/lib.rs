@@ -70,7 +70,6 @@ pub fn run() {
             commands::probe,
             commands::set_alias,
             commands::read_capabilities,
-            commands::read_missing_capabilities,
             commands::capture_layout,
             commands::save_layout,
             commands::input_sources,

@@ -33,14 +33,6 @@ export function readCapabilities(): Promise<Record<string, Capabilities>> {
   return invoke<Record<string, Capabilities>>('read_capabilities');
 }
 
-/**
- * First sight: reads capabilities only when the latest probe shows an Active monitor
- * without an entry. Null when there was nothing to read.
- */
-export function readMissingCapabilities(): Promise<Record<string, Capabilities> | null> {
-  return invoke<Record<string, Capabilities> | null>('read_missing_capabilities');
-}
-
 /** Saves the latest probe as a layout; with `replaceId`, re-captures that layout. */
 export function captureLayout(name: string, replaceId: string | null): Promise<CaptureOutcome> {
   return invoke<CaptureOutcome>('capture_layout', { name, replaceId });

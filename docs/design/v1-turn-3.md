@@ -18,10 +18,12 @@ this session is ticket #31.
 
 ## What changed since 1f was drawn
 
-- The app reads each Active monitor's **capabilities** in the background the first
-  time it sees the monitor, and keeps them: the inputs it accepts, whether the app
-  can wake it, the modes Windows lists for it. **Re-check** reads them again on
-  request. The read takes about four seconds per monitor.
+- The app reads each Active monitor's **capabilities** when the user presses
+  **Re-check**, and keeps them: the inputs it accepts, whether the app can wake it,
+  the modes Windows lists for it. The read takes about four seconds per monitor and
+  stalls the desktop while it runs, so nothing reads them on its own (the brief
+  first said "on first sight"; that was built, felt on the reference machine and
+  removed the same day).
 - The probe now tells a monitor that is **asleep** from one that is awake. Windows
   still counts it Active, so asleep is a suffix on the state, not a fourth state.
 - The "send input now" test action from 1f is out of scope for this slice; drop it.

@@ -1,7 +1,7 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Capabilities } from '@/domain/generated/types';
-import { loadConfig, readCapabilities, readMissingCapabilities } from '@/tauri/commands';
+import { loadConfig, readCapabilities } from '@/tauri/commands';
 import { useMonitorsStore } from './monitors.store';
 
 vi.mock('@/tauri/commands', async () => (await import('@/test/commands')).commandsMock());
@@ -32,20 +32,6 @@ describe('monitors store', () => {
     vi.mocked(loadConfig).mockResolvedValueOnce({ schemaVersion: 3, window: { width: 1280, height: 860 }, aliases: {}, capabilities: { 'path-acer': entry() }, layouts: [] });
     await store.load();
     expect(store.capabilities['path-acer']?.powerModes).toEqual([1, 5]);
-  });
-
-  it('keeps what the first-sight read returns and leaves the map alone when nothing was read', async () => {
-    const store = useMonitorsStore();
-    store.capabilities = { 'path-acer': entry() };
-    vi.mocked(readMissingCapabilities).mockResolvedValueOnce(null);
-    await store.readMissing();
-    expect(Object.keys(store.capabilities)).toEqual(['path-acer']);
-
-    vi.mocked(readMissingCapabilities).mockResolvedValueOnce({ 'path-acer': entry(), 'path-msi': entry({ powerModes: [5] }) });
-    await store.readMissing();
-    expect(Object.keys(store.capabilities)).toEqual(['path-acer', 'path-msi']);
-    expect(store.reading).toBe(false);
-    expect(store.readError).toBeNull();
   });
 
   it('re-check replaces the entries and shows that a read is running until it returns', async () => {

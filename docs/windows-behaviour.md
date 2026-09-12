@@ -73,6 +73,11 @@ most timing defaults trace back to one of these.
   wait. The string lists the writable power modes and the input codes
   each monitor accepts, as `vcp(... 60(11 12 0F) ... D6(01 05) ...)`; the app reads
   those two groups and keeps the whole string for diagnostics.
+- **DDC-CI capabilities requests stall the desktop while they run.** With four monitors
+  read together the reference machine (NVIDIA RTX 5070) had a laggy cursor and slow
+  window drawing for about 15 s, every time the app started, when it read capabilities
+  on its own after the probe. Single VCP reads and writes do not show this. The app
+  reads capabilities only when the user presses Re-check, and says what it costs first.
 - **Refresh rates are per mode, not per monitor.** `EnumDisplaySettingsEx` on a GDI
   name lists every mode a monitor offers with its `dmDisplayFrequency`, and the
   display-config path target carries the refresh rate the arrangement applies. Not

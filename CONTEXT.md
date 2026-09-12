@@ -126,8 +126,8 @@ _Avoid_: input, source, channel
 
 **Capabilities**:
 What a monitor declares it can do: the input sources it accepts, whether it can be
-woken, and the modes Windows lists for it. Read on first sight and on re-check, never
-by the probe.
+woken, and the modes Windows lists for it. Read only on re-check, never by the probe
+or on the app's own.
 _Avoid_: analysis, features, scan, supported inputs (on its own)
 
 **Asleep**:
@@ -136,8 +136,8 @@ A monitor that does not answer is neither awake nor asleep.
 _Avoid_: sleeping, power saving, standby (as the user-facing word), dark
 
 **Re-check**:
-Reading capabilities again for every Active monitor, started from the Monitors
-screen.
+Reading capabilities for every Active monitor, started from the Monitors screen and
+nowhere else.
 _Avoid_: refresh (that is the probe), rescan, re-read, analyse
 
 ### Side effects

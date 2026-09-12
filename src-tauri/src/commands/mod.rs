@@ -60,16 +60,6 @@ pub async fn read_capabilities(
     blocking(move || app.read_capabilities()).await
 }
 
-/// First sight: reads capabilities only when the latest probe shows an Active
-/// monitor without an entry; the renderer calls this after a probe, without waiting.
-#[tauri::command]
-pub async fn read_missing_capabilities(
-    state: State<'_, AppState>,
-) -> Result<Option<BTreeMap<String, Capabilities>>, AppError> {
-    let app = Arc::clone(&state.app);
-    blocking(move || app.read_missing_capabilities()).await
-}
-
 #[tauri::command]
 pub async fn capture_layout(
     state: State<'_, AppState>,

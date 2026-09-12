@@ -2,13 +2,13 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 import type { Capabilities } from '@/domain/generated/types';
 import { errorMessage } from '@/domain/errors';
-import { loadConfig, readCapabilities, readMissingCapabilities } from '@/tauri/commands';
+import { loadConfig, readCapabilities } from '@/tauri/commands';
 
 /**
  * What each monitor declared it can do (CONTEXT.md: Capabilities), keyed by device
- * path, and the read that fills it: on first sight after a probe, or on Re-check.
- * The Monitors screen reads from here; the layouts store calls for the first-sight
- * read after every probe and for a reload after an import.
+ * path, and the one read that fills it, Re-check. Nothing reads capabilities on its
+ * own: the DDC-CI requests stall the desktop while they run. The Monitors screen
+ * reads from here; the layouts store asks for a reload after an import.
  */
 export const useMonitorsStore = defineStore('monitors', () => {
   const capabilities = ref<Record<string, Capabilities>>({});
@@ -26,29 +26,14 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
-  /**
-   * First sight: asks the app to read every Active monitor without an entry. Nothing
-   * happens when every monitor is known, or while a read already runs.
-   */
-  async function readMissing() {
-    await read(readMissingCapabilities);
-  }
-
-  /** Re-check: reads every Active monitor again and replaces its entry. */
+  /** Re-check: reads every Active monitor and replaces its entry; a second press waits. */
   async function reCheck() {
-    await read(readCapabilities);
-  }
-
-  async function read(run: () => Promise<Record<string, Capabilities> | null>) {
     if (reading.value) {
       return;
     }
     reading.value = true;
     try {
-      const stored = await run();
-      if (stored !== null) {
-        capabilities.value = stored;
-      }
+      capabilities.value = await readCapabilities();
       readError.value = null;
     } catch (cause) {
       readError.value = errorMessage(cause);
@@ -57,5 +42,5 @@ export const useMonitorsStore = defineStore('monitors', () => {
     }
   }
 
-  return { capabilities, reading, readError, load, readMissing, reCheck };
+  return { capabilities, reading, readError, load, reCheck };
 });

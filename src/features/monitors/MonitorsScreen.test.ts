@@ -57,6 +57,7 @@ describe('MonitorsScreen', () => {
     const wrapper = mount(MonitorsScreen);
     expect(wrapper.find('.subtitle').text()).toBe('5 monitors connected. Aliases are yours; every other column is read from the hardware.');
     expect(wrapper.find('.last-probe').text()).toMatch(/^Last probe \d\d:\d\d/);
+    expect(wrapper.find('.cost').text()).toContain('The desktop stutters for about 15 seconds while it runs');
     const acer = rowOf(wrapper, 'KG241Y X1');
     expect(acer.find('.alias-text').text()).toBe('Side');
     expect(acer.find('.chip').text()).toBe('Active');

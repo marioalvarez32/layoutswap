@@ -1,20 +1,20 @@
 # layoutswap
 
 [![CI](https://github.com/marioalvarez32/layoutswap/actions/workflows/ci.yml/badge.svg)](https://github.com/marioalvarez32/layoutswap/actions/workflows/ci.yml)
+[![Release](https://github.com/marioalvarez32/layoutswap/actions/workflows/release.yml/badge.svg)](https://github.com/marioalvarez32/layoutswap/releases)
 
-Switch between saved monitor layouts on Windows with one click, including the side
-effects a real switch needs: hand a monitor's input to another device, turn monitors
-on or off, keep Remote Desktop monitor IDs correct, and enable or disable audio
-endpoints. Every layout becomes a generated script and a shortcut, so switching
-works with the app closed.
+Save the monitor arrangements you use on Windows and switch between them with one
+click. A layout is more than positions: it records which monitors are on or off,
+the input each shared monitor should show, and the steps a real switch needs, such
+as waiting for a monitor to come back after you press its input button. Every layout
+becomes a generated script and a shortcut, so switching works with the app closed.
 
 **Status:** pre-alpha, in daily use on the machine it was built against. The app
 reads the connected monitors, captures the arrangement Windows shows as a named
-layout, lets you add steps around the apply (send an input source to a monitor, wait
-for it to drop or come back), switches from inside the app with live progress, and
-verifies the result. The Monitors screen lists every monitor with its state and
-what it declares it can do. Audio endpoints and Remote Desktop profiles are the next
-slices; the reference scripts under `samples/` still do those by hand.
+layout, lets you add steps around the apply, switches from inside the app with live
+progress, and verifies the result. The Monitors screen lists every monitor with its
+state and what it declares it can do. Audio endpoints and Remote Desktop profiles are
+the next slices.
 
 ## Screenshots
 
@@ -31,12 +31,23 @@ one declares over DDC-CI.
 
 ## Why
 
-One ultrawide monitor is shared between a PC and a console. Switching it means
-changing the monitor's input, letting Windows drop the monitor, lighting a spare one
-in its place, and then undoing all of that later, while Windows reshuffles Remote
-Desktop monitor numbers and re-enables monitor speakers every time the topology
-changes. Two PowerShell scripts grew to handle this on one machine. layoutswap
-turns them into something anyone can configure.
+Windows remembers one arrangement per set of connected monitors, and rebuilding
+another one by hand in Settings > Display takes a minute of dragging every time.
+Anyone with more than two monitors ends up with a few arrangements they keep coming
+back to:
+
+- A work layout with every monitor on, and a focus layout with only the main one.
+- A film or gaming layout where the big monitor is the primary and the rest are off.
+- A docked laptop that should look the same each time it comes back to the desk.
+- A monitor shared with another device, a console or a second PC, that has to be
+  handed over with its input button and taken back later.
+
+The last case is where layoutswap started: a monitor's input changes, Windows drops
+the monitor, a spare one takes its place, and later all of it has to be undone,
+while Windows reshuffles Remote Desktop monitor numbers and re-enables monitor
+speakers every time the topology changes. Two PowerShell scripts grew to handle
+that on one machine. layoutswap turns them into something anyone can configure,
+for any set of layouts.
 
 ## What it does today
 
@@ -85,6 +96,9 @@ hardware facts behind them are in `docs/windows-behaviour.md`.
 
 ## Hardware it was built against
 
+Any Windows 11 machine with several monitors should work; these are the parts the
+hardware facts were learned on.
+
 | Part | Model |
 |---|---|
 | Laptop | Lenovo Legion 5 15IAX10, NVIDIA RTX 5070 + Intel Arc |
@@ -94,10 +108,8 @@ hardware facts behind them are in `docs/windows-behaviour.md`.
 ## Install
 
 Each release on the [releases page](https://github.com/marioalvarez32/layoutswap/releases)
-carries an MSI and an NSIS setup for 64-bit Windows 11. Until the first release, build
-from source as below.
-The app writes everything it owns under `%LOCALAPPDATA%\layoutswap`; delete that
-folder to start fresh.
+carries an MSI and an NSIS setup for 64-bit Windows 11. The app writes everything it
+owns under `%LOCALAPPDATA%\layoutswap`; delete that folder to start fresh.
 
 ## Development
 
@@ -105,7 +117,7 @@ Prerequisites: Node with pnpm, the Rust toolchain (`x86_64-pc-windows-msvc`), th
 Visual Studio C++ build tools, and the WebView2 runtime that ships with Windows 11.
 
 ```
-pnpm install          # once per clone
+pnpm install          # once per clone; also installs the commit-msg hook
 pnpm tauri dev        # opens the app with hot reload
 pnpm tauri build      # release build and installers under src-tauri/target/release
 pnpm lint             # ESLint: lint and formatting check

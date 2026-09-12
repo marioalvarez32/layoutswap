@@ -91,6 +91,21 @@ pub enum AppError {
     #[error("Wait for layoutswap to finish reading the monitors, then try again.")]
     NoProbeYet,
 
+    /// The app log carries the failure; there is no capabilities log of its own, since
+    /// the read has no output of its own to keep when it fails.
+    #[error(
+        "Re-check the monitors once they are all showing a picture: the capabilities read exited with exit code {exit_code} ({stderr})."
+    )]
+    CapabilitiesFailed { exit_code: i32, stderr: String },
+
+    #[error(
+        "Update layoutswap: the capabilities read reported something this version cannot read ({source})."
+    )]
+    CapabilitiesUnreadable {
+        #[source]
+        source: serde_json::Error,
+    },
+
     #[error("{reason}")]
     InvalidLayoutName { reason: String },
 

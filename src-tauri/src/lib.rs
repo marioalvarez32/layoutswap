@@ -40,7 +40,9 @@ pub fn run() {
             let app = App::new(config::app_root()?, Arc::new(PowerShellRunner));
             // The probe on disk always matches the running app: rewrite it every start,
             // and bring every layout's switch script up to this template.
-            app.write_probe_script(&chrono::Local::now().to_rfc3339())?;
+            let rendered_at = chrono::Local::now().to_rfc3339();
+            app.write_probe_script(&rendered_at)?;
+            app.write_capabilities_script(&rendered_at)?;
             if let Err(error) = app.regenerate_stale_scripts() {
                 // The window still opens; the detail shows the script as stale.
                 eprintln!("layoutswap: could not regenerate stale scripts: {error}");
@@ -66,6 +68,8 @@ pub fn run() {
             commands::load_config,
             commands::save_window_size,
             commands::probe,
+            commands::read_capabilities,
+            commands::read_missing_capabilities,
             commands::capture_layout,
             commands::save_layout,
             commands::input_sources,

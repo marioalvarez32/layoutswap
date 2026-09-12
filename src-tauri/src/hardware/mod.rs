@@ -5,6 +5,7 @@
 //! output technology is which connector, how a DPI becomes a scale, what a DDC-CI
 //! input source code is. Nothing else in the crate reads those raw facts.
 
+pub mod capabilities;
 pub mod input_source;
 mod report;
 

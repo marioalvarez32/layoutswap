@@ -8,6 +8,7 @@ import SaveLayoutPage from '@/features/layouts/SaveLayoutPage.vue';
 import Sidebar from '@/features/layouts/Sidebar.vue';
 import SwitchProgress from '@/features/layouts/SwitchProgress.vue';
 import { useLayoutsStore } from '@/features/layouts/layouts.store';
+import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import { useUnsavedGuard } from '@/features/layouts/useUnsavedGuard';
 import { useWindowSize } from '@/features/settings/useWindowSize';
 import { formatProbeTime } from '@/domain/time';
@@ -57,6 +58,7 @@ async function onImport() {
 
 onMounted(async () => {
   await layoutsStore.load();
+  await useMonitorsStore().load();
   await layoutsStore.probe();
 });
 </script>

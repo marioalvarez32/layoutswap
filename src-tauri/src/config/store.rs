@@ -123,10 +123,22 @@ fn migrate(mut value: Value, path: &Path) -> Result<Value, AppError> {
     if found < 2 {
         migrate_1_to_2(&mut value);
     }
+    if found < 3 {
+        migrate_2_to_3(&mut value);
+    }
     if let Some(object) = value.as_object_mut() {
         object.insert("schemaVersion".into(), Value::from(SCHEMA_VERSION));
     }
     Ok(value)
+}
+
+/// Version 3 added the capabilities map, empty until the first read.
+fn migrate_2_to_3(value: &mut Value) {
+    if let Some(object) = value.as_object_mut() {
+        object
+            .entry("capabilities")
+            .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    }
 }
 
 /// Version 2 gave every layout a timeline: empty steps, the default timings, the
@@ -185,6 +197,17 @@ mod tests {
             r"\\?\DISPLAY#AUS34A1#5&abc#0#UID4353".into(),
             "Ultrawide".into(),
         );
+        config.capabilities.insert(
+            r"\\?\DISPLAY#AUS34A1#5&abc#0#UID4353".into(),
+            crate::config::capabilities::Capabilities {
+                read_at: "2026-09-11T11:52:00-05:00".into(),
+                answered: true,
+                input_codes: vec![0x11, 0x12, 0x0F],
+                power_modes: vec![1, 5],
+                modes: vec![crate::config::capabilities::Mode { width: 3440, height: 1440, hz: 100 }],
+                raw: "(prot(monitor)vcp(60(11 12 0F) D6(01 05)))".into(),
+            },
+        );
         store.save(&config).unwrap();
         assert_eq!(store.load().unwrap(), config);
     }
@@ -217,13 +240,32 @@ mod tests {
         });
         fs::write(store.path(), v1.to_string()).unwrap();
         let config = store.load().unwrap();
-        assert_eq!(config.schema_version, 2);
+        assert_eq!(config.schema_version, SCHEMA_VERSION);
         let layout = &config.layouts[0];
         assert!(layout.steps.is_empty());
         assert_eq!(layout.drop_wait_seconds, 5);
         assert_eq!(layout.available_wait_seconds, 120);
         assert_eq!(layout.on_apply_failure, crate::config::layouts::ApplyFailure::Stop);
         assert_eq!(layout.updated_at, layout.captured_at);
+    }
+
+    #[test]
+    fn a_version_2_config_gains_an_empty_capabilities_map() {
+        let (_dir, store) = store();
+        fs::create_dir_all(store.path().parent().unwrap()).unwrap();
+        let v2 = serde_json::json!({
+            "schemaVersion": 2,
+            "window": { "width": 1280, "height": 860 },
+            "aliases": { "path-a": "Side" },
+            "layouts": []
+        });
+        fs::write(store.path(), v2.to_string()).unwrap();
+        let config = store.load().unwrap();
+        assert_eq!(config.schema_version, 3);
+        assert!(config.capabilities.is_empty());
+        assert_eq!(config.aliases.get("path-a").map(String::as_str), Some("Side"));
+        let text = serde_json::to_string(&config).unwrap();
+        assert!(text.contains(r#""capabilities":{}"#), "{text}");
     }
 
     #[test]

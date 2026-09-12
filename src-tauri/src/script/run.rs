@@ -194,6 +194,9 @@ impl RunningScript for PowerShellProcess {
 #[derive(Debug, Default)]
 pub struct FakeScriptRunner {
     output: Mutex<ScriptOutput>,
+    /// Outputs per script file name, for a test that runs more than one script;
+    /// `run` falls back to `output` for a name not listed here.
+    by_name: Mutex<std::collections::HashMap<String, ScriptOutput>>,
     pub calls: std::sync::Mutex<Vec<(std::path::PathBuf, Vec<String>)>>,
     stream: Option<(Vec<String>, i32)>,
     pause: Option<(usize, Arc<Gate>)>,
@@ -257,6 +260,18 @@ impl FakeScriptRunner {
         }
     }
 
+    /// What `run` returns for the script called `name` (`capabilities.ps1`), from now on.
+    pub fn set_stdout_for(&self, name: &str, stdout: &str) {
+        self.by_name.lock().unwrap().insert(
+            name.to_string(),
+            ScriptOutput {
+                exit_code: 0,
+                stdout: stdout.to_string(),
+                stderr: String::new(),
+            },
+        );
+    }
+
     /// What `run` returns from now on, for a test whose probe changes mid-way.
     pub fn set_stdout(&self, stdout: &str) {
         *self.output.lock().unwrap() = ScriptOutput {
@@ -296,6 +311,10 @@ impl ScriptRunner for FakeScriptRunner {
             .lock()
             .unwrap()
             .push((script.to_path_buf(), args.to_vec()));
+        let name = script.file_name().and_then(|n| n.to_str()).unwrap_or("");
+        if let Some(output) = self.by_name.lock().unwrap().get(name) {
+            return Ok(output.clone());
+        }
         Ok(self.output.lock().unwrap().clone())
     }
 

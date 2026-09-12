@@ -4,7 +4,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-import type { CaptureOutcome, Config, InputSource, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
+import type { Capabilities, CaptureOutcome, Config, InputSource, Inventory, Layout, LayoutEdits, ScriptStatus, SwitchEvent, SwitchResult, WindowSize } from '@/domain/generated/types';
 
 export function loadConfig(): Promise<Config> {
   return invoke<Config>('load_config');
@@ -21,6 +21,19 @@ export function isWindowMaximized(): Promise<boolean> {
 /** Runs the probe script and returns what Windows shows right now. */
 export function probe(): Promise<Inventory> {
   return invoke<Inventory>('probe');
+}
+
+/** Re-check: reads every Active monitor's capabilities and returns the stored map. */
+export function readCapabilities(): Promise<Record<string, Capabilities>> {
+  return invoke<Record<string, Capabilities>>('read_capabilities');
+}
+
+/**
+ * First sight: reads capabilities only when the latest probe shows an Active monitor
+ * without an entry. Null when there was nothing to read.
+ */
+export function readMissingCapabilities(): Promise<Record<string, Capabilities> | null> {
+  return invoke<Record<string, Capabilities> | null>('read_missing_capabilities');
 }
 
 /** Saves the latest probe as a layout; with `replaceId`, re-captures that layout. */

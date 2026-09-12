@@ -10,10 +10,12 @@ mod transfer;
 
 pub use switch::{FailureExplanation, SwitchEvent, SwitchResult};
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, PoisonError};
 
+use crate::config::capabilities::Capabilities;
 use crate::config::layouts::{
     self, ApplyFailure, CaptureOutcome, Layout, LayoutEdits, ScriptRecord, ScriptState,
     ScriptStatus, DEFAULT_AVAILABLE_WAIT_SECONDS, DEFAULT_DROP_WAIT_SECONDS,
@@ -29,12 +31,17 @@ use crate::script::run::ScriptRunner;
 pub const PROBE_SCRIPT_NAME: &str = "probe.ps1";
 pub const LAST_PROBE_NAME: &str = "last-probe.json";
 pub const PROBE_LOG_NAME: &str = "probe.log";
+pub const CAPABILITIES_SCRIPT_NAME: &str = "capabilities.ps1";
+pub const LAST_CAPABILITIES_NAME: &str = "last-capabilities.json";
 pub const LAYOUTS_DIR_NAME: &str = "layouts";
 
 pub struct App {
     store: ConfigStore,
     runner: Arc<dyn ScriptRunner>,
     last_probe: Mutex<Option<Inventory>>,
+    /// Held while the capabilities script runs, and taken by the probe, so a Refresh
+    /// during a read waits for it instead of racing it for the monitors.
+    capabilities_read: Mutex<()>,
     active_switch: Mutex<Option<switch::ActiveSwitch>>,
 }
 
@@ -44,6 +51,7 @@ impl App {
             store: ConfigStore::new(root),
             runner,
             last_probe: Mutex::new(None),
+            capabilities_read: Mutex::new(()),
             active_switch: Mutex::new(None),
         }
     }
@@ -68,9 +76,93 @@ impl App {
         Ok(path)
     }
 
+    pub fn capabilities_script_path(&self) -> PathBuf {
+        self.root().join(CAPABILITIES_SCRIPT_NAME)
+    }
+
+    /// Writes the capabilities script beside the probe, replacing the previous one.
+    pub fn write_capabilities_script(&self, rendered_at: &str) -> Result<PathBuf, AppError> {
+        let path = self.capabilities_script_path();
+        fs::create_dir_all(self.root()).map_err(|source| AppError::ScriptWrite {
+            path: path.clone(),
+            source,
+        })?;
+        write_script(&path, &render::render_capabilities(rendered_at).text)?;
+        Ok(path)
+    }
+
+    /// Reads every Active monitor's capabilities now and stores them, replacing the
+    /// entries it read (CONTEXT.md: Re-check). Returns the whole stored map. A failed
+    /// read leaves the stored entries as they were and is logged.
+    pub fn read_capabilities(&self) -> Result<BTreeMap<String, Capabilities>, AppError> {
+        let _reading = self
+            .capabilities_read
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.read_capabilities_locked()
+    }
+
+    /// The read itself; the caller holds `capabilities_read`.
+    fn read_capabilities_locked(&self) -> Result<BTreeMap<String, Capabilities>, AppError> {
+        let entries = match hardware::capabilities::read(
+            self.runner.as_ref(),
+            &self.capabilities_script_path(),
+        ) {
+            Ok(entries) => entries,
+            Err(error) => {
+                self.log(format!("capabilities read failed: {error}"));
+                return Err(error);
+            }
+        };
+        if let Ok(json) = serde_json::to_string_pretty(&serde_json::json!({ "monitors": entries })) {
+            // Best effort: a failed diagnostics copy must not fail the read.
+            let _ = fs::create_dir_all(self.root());
+            let _ = fs::write(self.root().join(LAST_CAPABILITIES_NAME), json);
+        }
+        self.log(format!(
+            "capabilities: {} monitors read, {} answered",
+            entries.len(),
+            entries.values().filter(|c| c.answered).count()
+        ));
+        let mut config = self.load_config()?;
+        config.capabilities.extend(entries);
+        self.store.save(&config)?;
+        Ok(config.capabilities)
+    }
+
+    /// First sight: reads capabilities when the latest probe shows an Active monitor
+    /// without an entry, else does nothing and returns None. The app calls this after
+    /// every probe, off the window's path, so the start never waits for it.
+    pub fn read_missing_capabilities(
+        &self,
+    ) -> Result<Option<BTreeMap<String, Capabilities>>, AppError> {
+        // Decided under the lock: a second Refresh that arrives while the first read
+        // runs finds the entries stored and reads nothing.
+        let _reading = self
+            .capabilities_read
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        let Some(inventory) = self.last_probe().clone() else {
+            return Ok(None);
+        };
+        let known = self.load_config()?.capabilities;
+        let missing = inventory.monitors.iter().any(|m| {
+            m.state == hardware::MonitorState::Active && !known.contains_key(&m.device_path)
+        });
+        if !missing {
+            return Ok(None);
+        }
+        self.read_capabilities_locked().map(Some)
+    }
+
     /// Runs the probe, remembers the result for the next capture, and keeps a copy on
     /// disk for diagnostics. A failed run lands in `probe.log`, and the error names it.
+    /// A capabilities read in progress finishes first.
     pub fn probe(&self) -> Result<Inventory, AppError> {
+        let _not_reading = self
+            .capabilities_read
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         let inventory = match hardware::probe(self.runner.as_ref(), &self.probe_script_path()) {
             Ok(inventory) => inventory,
             Err(AppError::ProbeFailed {
@@ -445,14 +537,31 @@ mod tests {
     use tempfile::TempDir;
 
     const FIVE: &str = include_str!("hardware/fixtures/five-monitors.json");
+    const CAPABILITIES: &str = include_str!("hardware/fixtures/capabilities.json");
 
     fn app() -> (TempDir, App) {
-        let dir = tempfile::tempdir().unwrap();
-        let app = App::new(
-            dir.path().join("layoutswap"),
-            Arc::new(FakeScriptRunner::with_stdout(FIVE)),
-        );
+        let (dir, app, _) = app_with_runner();
         (dir, app)
+    }
+
+    /// An app whose fake runner answers the probe with the five monitors and the
+    /// capabilities script with their capabilities.
+    fn app_with_runner() -> (TempDir, App, Arc<FakeScriptRunner>) {
+        let dir = tempfile::tempdir().unwrap();
+        let runner = Arc::new(FakeScriptRunner::with_stdout(FIVE));
+        runner.set_stdout_for(CAPABILITIES_SCRIPT_NAME, CAPABILITIES);
+        let app = App::new(dir.path().join("layoutswap"), Arc::clone(&runner) as _);
+        (dir, app, runner)
+    }
+
+    fn capability_runs(runner: &FakeScriptRunner) -> usize {
+        runner
+            .calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(path, _)| path.ends_with(CAPABILITIES_SCRIPT_NAME))
+            .count()
     }
 
     fn saved(outcome: CaptureOutcome) -> Layout {
@@ -474,6 +583,130 @@ mod tests {
         assert!(fs::read_to_string(&path)
             .unwrap()
             .contains("# rendered second"));
+    }
+
+    #[test]
+    fn the_capabilities_script_is_written_beside_the_probe() {
+        let (_dir, app) = app();
+        let path = app.write_capabilities_script("first").unwrap();
+        assert_eq!(path, app.root().join("capabilities.ps1"));
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(text.contains("# rendered first"));
+        assert!(text.contains("generated by layoutswap: capabilities"));
+    }
+
+    #[test]
+    fn a_probe_that_shows_a_monitor_without_capabilities_triggers_one_read_that_stores_every_entry() {
+        let (_dir, app, runner) = app_with_runner();
+        assert!(app.read_missing_capabilities().unwrap().is_none(), "nothing to read before a probe");
+        app.probe().unwrap();
+        let stored = app.read_missing_capabilities().unwrap().expect("a read ran");
+        assert_eq!(capability_runs(&runner), 1);
+        assert_eq!(stored.len(), 5);
+        let config = app.load_config().unwrap();
+        assert_eq!(config.capabilities, stored);
+        let acer = config.capabilities.iter().find(|(p, _)| p.contains("ACR0EC4")).unwrap().1;
+        assert!(acer.can_wake());
+        let copy = fs::read_to_string(app.root().join("last-capabilities.json")).unwrap();
+        assert!(copy.contains("\"monitors\""));
+        let log = fs::read_to_string(app.app_log_path()).unwrap();
+        assert!(log.contains("capabilities: 5 monitors read, 4 answered"), "{log}");
+    }
+
+    #[test]
+    fn a_probe_whose_active_monitors_all_have_capabilities_triggers_no_read() {
+        let (_dir, app, runner) = app_with_runner();
+        app.probe().unwrap();
+        app.read_missing_capabilities().unwrap();
+        app.probe().unwrap();
+        assert!(app.read_missing_capabilities().unwrap().is_none());
+        assert_eq!(capability_runs(&runner), 1);
+    }
+
+    #[test]
+    fn re_check_reads_regardless_and_replaces_the_entries() {
+        let (_dir, app, runner) = app_with_runner();
+        app.probe().unwrap();
+        app.read_missing_capabilities().unwrap();
+        runner.set_stdout_for(CAPABILITIES_SCRIPT_NAME, &CAPABILITIES.replace("D6(01 02 04 05)", "D6(05)"));
+        let again = app.read_capabilities().unwrap();
+        assert_eq!(capability_runs(&runner), 2);
+        let acer = again.iter().find(|(p, _)| p.contains("ACR0EC4")).unwrap().1;
+        assert!(!acer.can_wake(), "the entry was replaced");
+        assert_eq!(app.load_config().unwrap().capabilities, again);
+    }
+
+    /// A runner whose capabilities script blocks until the test lets it finish, so a
+    /// probe started meanwhile can be shown to wait for it.
+    struct BlockingCapabilities {
+        inner: FakeScriptRunner,
+        started: std::sync::mpsc::Sender<()>,
+        release: Mutex<std::sync::mpsc::Receiver<()>>,
+    }
+
+    impl ScriptRunner for BlockingCapabilities {
+        fn run(&self, script: &Path, args: &[String]) -> Result<crate::script::run::ScriptOutput, AppError> {
+            if script.ends_with(CAPABILITIES_SCRIPT_NAME) {
+                self.started.send(()).unwrap();
+                self.release.lock().unwrap().recv().unwrap();
+            }
+            self.inner.run(script, args)
+        }
+
+        fn start(&self, script: &Path, args: &[String]) -> Result<Box<dyn crate::script::run::RunningScript>, AppError> {
+            self.inner.start(script, args)
+        }
+    }
+
+    #[test]
+    fn a_probe_during_a_capabilities_read_waits_for_the_read_to_finish() {
+        let dir = tempfile::tempdir().unwrap();
+        let inner = FakeScriptRunner::with_stdout(FIVE);
+        inner.set_stdout_for(CAPABILITIES_SCRIPT_NAME, CAPABILITIES);
+        let (started_tx, started) = std::sync::mpsc::channel();
+        let (release, release_rx) = std::sync::mpsc::channel();
+        let runner = Arc::new(BlockingCapabilities {
+            inner,
+            started: started_tx,
+            release: Mutex::new(release_rx),
+        });
+        let app = Arc::new(App::new(dir.path().join("layoutswap"), Arc::clone(&runner) as _));
+        app.probe().unwrap();
+
+        let reader = {
+            let app = Arc::clone(&app);
+            std::thread::spawn(move || app.read_capabilities().unwrap().len())
+        };
+        started.recv_timeout(std::time::Duration::from_secs(5)).expect("the read started");
+        let (probed_tx, probed) = std::sync::mpsc::channel();
+        let prober = {
+            let app = Arc::clone(&app);
+            std::thread::spawn(move || {
+                let inventory = app.probe().unwrap();
+                probed_tx.send(inventory.monitors.len()).unwrap();
+            })
+        };
+        assert!(
+            probed.recv_timeout(std::time::Duration::from_millis(300)).is_err(),
+            "the probe must not return while the read runs"
+        );
+        release.send(()).unwrap();
+        assert_eq!(reader.join().unwrap(), 5);
+        assert_eq!(probed.recv_timeout(std::time::Duration::from_secs(5)).unwrap(), 5);
+        prober.join().unwrap();
+    }
+
+    #[test]
+    fn a_failed_capabilities_read_keeps_the_stored_entries_and_is_logged() {
+        let (_dir, app, runner) = app_with_runner();
+        app.probe().unwrap();
+        app.read_capabilities().unwrap();
+        runner.set_stdout_for(CAPABILITIES_SCRIPT_NAME, "not json");
+        let error = app.read_capabilities().unwrap_err();
+        assert!(matches!(error, AppError::CapabilitiesUnreadable { .. }), "{error:?}");
+        assert_eq!(app.load_config().unwrap().capabilities.len(), 5);
+        let log = fs::read_to_string(app.app_log_path()).unwrap();
+        assert!(log.contains("capabilities read failed"), "{log}");
     }
 
     #[test]

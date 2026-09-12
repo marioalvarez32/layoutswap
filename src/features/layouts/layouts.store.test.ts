@@ -2,7 +2,8 @@ import { flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SwitchEvent, SwitchResult } from '@/domain/generated/types';
-import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
+import { cancelSwitch, captureLayout, exportConfig, importConfig, onSwitchEvent, openDisplaySettings, openLog, probe, readMissingCapabilities, saveDiagnostics, saveLayout, scriptStates, switchLayout } from '@/tauri/commands';
+import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import { layoutFixture } from '@/test/fixtures';
 import { useLayoutsStore } from './layouts.store';
 
@@ -180,9 +181,10 @@ describe('layouts store: switch', () => {
     const store = useLayoutsStore();
     store.selectedId = 'layout-film';
     vi.mocked(importConfig).mockResolvedValueOnce({
-      schemaVersion: 1,
+      schemaVersion: 3,
       window: { width: 1280, height: 860 },
       aliases: { 'path-acer': 'Side' },
+      capabilities: {},
       layouts: [{ ...layoutFixture(), id: 'layout-new', name: 'New' }],
     });
     vi.mocked(scriptStates).mockResolvedValueOnce([{ layoutId: 'layout-new', state: 'current', path: 'C:/x/switch.ps1' }]);
@@ -260,6 +262,15 @@ describe('layouts store: switch', () => {
     dirty();
     await store.capture('Desk', 'layout-desk');
     expect(store.dirty).toBe(false);
+  });
+
+  it('asks for the first-sight capabilities read after every probe, without waiting for it', async () => {
+    const store = useLayoutsStore();
+    vi.mocked(readMissingCapabilities).mockResolvedValueOnce({ 'path-acer': { readAt: 'x', answered: true, inputCodes: [0x11], powerModes: [1], modes: [], raw: '' } });
+    await store.probe();
+    expect(readMissingCapabilities).toHaveBeenCalledTimes(1);
+    await flushPromises();
+    expect(Object.keys(useMonitorsStore().capabilities)).toEqual(['path-acer']);
   });
 
   it('re-captures a layout from a fresh probe under its own id, unless it has unsaved edits', async () => {

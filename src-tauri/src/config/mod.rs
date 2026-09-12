@@ -5,6 +5,7 @@
 //! is machine-bound under `%LOCALAPPDATA%\layoutswap`. Export config is the way to move
 //! between machines.
 
+pub mod capabilities;
 pub mod layouts;
 pub mod store;
 
@@ -15,11 +16,12 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::error::AppError;
+use capabilities::Capabilities;
 use layouts::Layout;
 
 /// The schema version this build writes. Reading a newer version is an error; older
 /// versions are migrated forward in [`store::migrate`].
-pub const SCHEMA_VERSION: u32 = 2;
+pub const SCHEMA_VERSION: u32 = 3;
 
 /// The size the window opens at on first run (DESIGN.md, Q7).
 pub const DEFAULT_WINDOW_SIZE: WindowSize = WindowSize {
@@ -45,6 +47,11 @@ pub struct Config {
     /// The user's alias per monitor, keyed by device path (ADR-0005).
     #[serde(default)]
     pub aliases: BTreeMap<String, String>,
+    /// What each monitor declared it can do, keyed by device path, as last read
+    /// (CONTEXT.md: Capabilities). Entries for monitors this machine has never seen
+    /// stay, so an import from another machine keeps them.
+    #[serde(default)]
+    pub capabilities: BTreeMap<String, Capabilities>,
     #[serde(default)]
     pub layouts: Vec<Layout>,
 }
@@ -55,6 +62,7 @@ impl Default for Config {
             schema_version: SCHEMA_VERSION,
             window: DEFAULT_WINDOW_SIZE,
             aliases: BTreeMap::new(),
+            capabilities: BTreeMap::new(),
             layouts: Vec::new(),
         }
     }

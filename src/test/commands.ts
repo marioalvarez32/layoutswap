@@ -6,9 +6,10 @@ import { inputSourcesFixture, inventoryFixture, layoutFixture } from './fixtures
 /** The config Rust returns on a fresh machine. */
 export function defaultConfig(): Config {
   return {
-    schemaVersion: 1,
+    schemaVersion: 3,
     window: { width: 1280, height: 860 },
     aliases: {},
+    capabilities: {},
     layouts: [],
   };
 }
@@ -25,6 +26,8 @@ export function commandsMock(): typeof commands {
     saveWindowSize: vi.fn<typeof commands.saveWindowSize>().mockResolvedValue(undefined),
     isWindowMaximized: vi.fn<typeof commands.isWindowMaximized>().mockResolvedValue(false),
     probe: vi.fn<typeof commands.probe>().mockResolvedValue(inventoryFixture()),
+    readCapabilities: vi.fn<typeof commands.readCapabilities>().mockResolvedValue({}),
+    readMissingCapabilities: vi.fn<typeof commands.readMissingCapabilities>().mockResolvedValue(null),
     captureLayout: vi.fn<typeof commands.captureLayout>().mockResolvedValue({ outcome: 'saved', layout: layoutFixture() }),
     saveLayout: vi.fn<typeof commands.saveLayout>().mockImplementation(async (_id, edits) => ({ ...layoutFixture(), ...edits })),
     scriptStates: vi.fn<typeof commands.scriptStates>().mockResolvedValue([]),

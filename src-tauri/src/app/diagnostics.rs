@@ -1,6 +1,7 @@
 //! Diagnostics: one zip with everything needed to debug a switch (CODING_STANDARDS,
 //! "Errors and logging"): the app log, the layout's switch log, the last probe output,
-//! the generated script and the config. The zip always has exactly these five members;
+//! the last capabilities output, the generated script and the config. The zip always
+//! has exactly these six members;
 //! a file that is not on disk becomes a one-line note under the same name, so the
 //! reader learns it was missing rather than wondering whether the app forgot it.
 
@@ -11,16 +12,17 @@ use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
-use super::{App, LAST_PROBE_NAME};
+use super::{App, LAST_CAPABILITIES_NAME, LAST_PROBE_NAME};
 use crate::config::layouts::{Layout, SWITCH_LOG_NAME, SWITCH_SCRIPT_NAME};
 use crate::config::store::CONFIG_FILE_NAME;
 use crate::error::AppError;
 
 /// The member names, in the order they are written.
-pub const DIAGNOSTICS_MEMBERS: [&str; 5] = [
+pub const DIAGNOSTICS_MEMBERS: [&str; 6] = [
     super::log::APP_LOG_NAME,
     SWITCH_LOG_NAME,
     LAST_PROBE_NAME,
+    LAST_CAPABILITIES_NAME,
     SWITCH_SCRIPT_NAME,
     CONFIG_FILE_NAME,
 ];
@@ -50,12 +52,13 @@ impl App {
     /// Writes the diagnostics zip for `layout_id` to `target` and returns that path.
     pub fn write_diagnostics(&self, layout_id: &str, target: &Path) -> Result<PathBuf, AppError> {
         let layout = self.find_layout(layout_id)?;
-        let sources: [(&str, PathBuf); 5] = [
+        let sources: [(&str, PathBuf); 6] = [
             (DIAGNOSTICS_MEMBERS[0], self.app_log_path()),
             (DIAGNOSTICS_MEMBERS[1], self.switch_log_path(&layout)),
             (DIAGNOSTICS_MEMBERS[2], self.root().join(LAST_PROBE_NAME)),
-            (DIAGNOSTICS_MEMBERS[3], self.switch_script_path(&layout)),
-            (DIAGNOSTICS_MEMBERS[4], self.store.path().to_path_buf()),
+            (DIAGNOSTICS_MEMBERS[3], self.root().join(LAST_CAPABILITIES_NAME)),
+            (DIAGNOSTICS_MEMBERS[4], self.switch_script_path(&layout)),
+            (DIAGNOSTICS_MEMBERS[5], self.store.path().to_path_buf()),
         ];
         let write_error = |source: std::io::Error| AppError::DiagnosticsWrite {
             path: target.to_path_buf(),
@@ -110,13 +113,16 @@ mod tests {
     }
 
     #[test]
-    fn the_zip_holds_exactly_the_five_members_with_their_contents() {
+    fn the_zip_holds_exactly_the_six_members_with_their_contents() {
         let dir = tempfile::tempdir().unwrap();
-        let app = App::new(
-            dir.path().join("layoutswap"),
-            Arc::new(FakeScriptRunner::with_stdout(FIVE)),
+        let runner = Arc::new(FakeScriptRunner::with_stdout(FIVE));
+        runner.set_stdout_for(
+            super::super::CAPABILITIES_SCRIPT_NAME,
+            include_str!("../hardware/fixtures/capabilities.json"),
         );
+        let app = App::new(dir.path().join("layoutswap"), runner as _);
         app.probe().unwrap();
+        app.read_capabilities().unwrap();
         let layout = match app.capture("Desk", None).unwrap() {
             CaptureOutcome::Saved { layout } => *layout,
             other => panic!("expected Saved, got {other:?}"),
@@ -136,6 +142,7 @@ mod tests {
                 "layoutswap.log",
                 "switch.log",
                 "last-probe.json",
+                "last-capabilities.json",
                 "switch.ps1",
                 "config.json"
             ]
@@ -144,8 +151,9 @@ mod tests {
         assert!(members[0].1.contains("diagnostics for Desk: saving to"));
         assert!(members[1].1.contains("=== Switch to Desk ==="));
         assert!(members[2].1.contains("\"monitors\""));
-        assert!(members[3].1.contains("#Requires -Version 5.1"));
-        assert!(members[4].1.contains("\"schemaVersion\""));
+        assert!(members[3].1.contains("\"inputCodes\""), "{}", members[3].1);
+        assert!(members[4].1.contains("#Requires -Version 5.1"));
+        assert!(members[5].1.contains("\"schemaVersion\""));
     }
 
     #[test]
@@ -163,7 +171,7 @@ mod tests {
         let target = dir.path().join("out.zip");
         app.write_diagnostics(&layout.id, &target).unwrap();
         let members = members(&target);
-        assert_eq!(members.len(), 5);
+        assert_eq!(members.len(), 6);
         assert!(members[1].1.starts_with("layoutswap: switch.log was not present at"));
     }
 
@@ -189,7 +197,7 @@ mod tests {
             })
             .unwrap();
         assert_eq!(written, Some(target.clone()));
-        assert_eq!(members(&target).len(), 5);
+        assert_eq!(members(&target).len(), 6);
         assert_eq!(app.save_diagnostics(&layout.id, |_| None).unwrap(), None);
     }
 

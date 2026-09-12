@@ -64,10 +64,15 @@ most timing defaults trace back to one of these.
   with `ES_DISPLAY_REQUIRED`, or a zero-distance `SendInput` mouse move, brings back
   displays the power plan switched off; neither reaches a monitor that put itself to
   sleep for lack of a signal on its current input.
-- **The DDC-CI capabilities string is slow.** Reading it took about four seconds per
-  panel on the reference machine, against well under a second for a single VCP read,
-  which is why the probe never reads it. It lists the writable power modes and the
-  input codes each monitor accepts.
+- **The DDC-CI capabilities string is slow, and requests take turns.** Reading it took
+  about four seconds per panel on the reference machine, against well under a second
+  for a single VCP read, which is why the probe never reads it. Requests started at
+  once for three panels still took about 13 s together, so the capabilities script
+  waits 10 s per active monitor for all of them together; a panel that refuses the
+  request fails at once and costs nothing, one that goes quiet costs its share of the
+  wait. The string lists the writable power modes and the input codes
+  each monitor accepts, as `vcp(... 60(11 12 0F) ... D6(01 05) ...)`; the app reads
+  those two groups and keeps the whole string for diagnostics.
 - **Refresh rates are per mode, not per monitor.** `EnumDisplaySettingsEx` on a GDI
   name lists every mode a monitor offers with its `dmDisplayFrequency`, and the
   display-config path target carries the refresh rate the arrangement applies. Not

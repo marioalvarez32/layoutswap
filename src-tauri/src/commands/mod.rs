@@ -7,11 +7,13 @@
 //! Commands that run a script or touch many files are `async` and hop to a blocking
 //! thread so the window stays responsive.
 
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, State};
 
 use crate::app::{App, SwitchEvent, SwitchResult};
+use crate::config::capabilities::Capabilities;
 use crate::config::layouts::{CaptureOutcome, Layout, LayoutEdits, ScriptStatus};
 use crate::config::{Config, WindowSize};
 use crate::error::AppError;
@@ -37,6 +39,25 @@ pub fn save_window_size(state: State<'_, AppState>, size: WindowSize) -> Result<
 pub async fn probe(state: State<'_, AppState>) -> Result<Inventory, AppError> {
     let app = Arc::clone(&state.app);
     blocking(move || app.probe()).await
+}
+
+/// Re-check: reads every Active monitor's capabilities and returns the stored map.
+#[tauri::command]
+pub async fn read_capabilities(
+    state: State<'_, AppState>,
+) -> Result<BTreeMap<String, Capabilities>, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || app.read_capabilities()).await
+}
+
+/// First sight: reads capabilities only when the latest probe shows an Active
+/// monitor without an entry; the renderer calls this after a probe, without waiting.
+#[tauri::command]
+pub async fn read_missing_capabilities(
+    state: State<'_, AppState>,
+) -> Result<Option<BTreeMap<String, Capabilities>>, AppError> {
+    let app = Arc::clone(&state.app);
+    blocking(move || app.read_missing_capabilities()).await
 }
 
 #[tauri::command]

@@ -205,6 +205,29 @@ mod tests {
     }
 
     #[test]
+    fn import_keeps_the_capabilities_entries_including_monitors_this_machine_never_saw() {
+        // The source machine read a monitor this machine never sees.
+        let source_dir = tempfile::tempdir().unwrap();
+        let runner = Arc::new(FakeScriptRunner::with_stdout(FIVE));
+        runner.set_stdout_for(
+            crate::app::CAPABILITIES_SCRIPT_NAME,
+            r#"{"readAt":"2026-09-11T11:52:00-05:00","monitors":{"path-foreign":{"answered":true,"raw":"(prot(monitor)vcp(60(11 0F) D6(01)))","modes":[]}}}"#,
+        );
+        let source = App::new(source_dir.path().join("layoutswap"), runner as _);
+        source.probe().unwrap();
+        source.capture("Desk", None).unwrap();
+        let stored = source.read_capabilities().unwrap();
+        let entry = stored.get("path-foreign").cloned().expect("the foreign entry is stored");
+        let file = source_dir.path().join("backup.json");
+        source.export_config(|_| Some(file.clone())).unwrap();
+
+        let (_dir, app, _) = app_with_layouts(&["Old"]);
+        let imported = app.import_config(|| Some(file.clone())).unwrap().unwrap();
+        assert_eq!(imported.capabilities.get("path-foreign"), Some(&entry));
+        assert_eq!(app.load_config().unwrap().capabilities.get("path-foreign"), Some(&entry));
+    }
+
+    #[test]
     fn a_layout_that_comes_back_under_its_own_id_keeps_its_folder_and_log() {
         let (dir, app, layouts) = app_with_layouts(&["Desk"]);
         let file = dir.path().join("backup.json");

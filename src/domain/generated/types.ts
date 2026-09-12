@@ -22,6 +22,37 @@ export type ApplyFailure = "stop" | "extend";
 export type ArrangementBlob = { paths: string, modes: string, sourceAdapters: Array<string>, targetAdapters: Array<string>, modeAdapters: Array<string>, };
 
 /**
+ * One monitor's capabilities, as last read.
+ */
+export type Capabilities = { 
+/**
+ * When the read ran, as the script's local ISO 8601 timestamp.
+ */
+readAt: string, 
+/**
+ * Whether the monitor answered the capabilities request at all. False means the
+ * rest is empty and the monitor is treated as it was before the read.
+ */
+answered: boolean, 
+/**
+ * The input source codes (VCP 0x60) the monitor declares it accepts.
+ */
+inputCodes: Array<number>, 
+/**
+ * The power mode values (VCP 0xD6) the monitor declares it accepts as a write.
+ */
+powerModes: Array<number>, 
+/**
+ * The modes Windows lists for the monitor, largest first, without duplicates.
+ */
+modes: Array<Mode>, 
+/**
+ * The capabilities string as the monitor sent it, for diagnostics; empty when it
+ * sent nothing.
+ */
+raw: string, };
+
+/**
  * What a capture command returns.
  */
 export type CaptureOutcome = { "outcome": "saved", layout: Layout, } | { "outcome": "nameTaken", id: string, name: string, };
@@ -37,7 +68,13 @@ window: WindowSize,
 /**
  * The user's alias per monitor, keyed by device path (ADR-0005).
  */
-aliases: { [key in string]: string }, layouts: Array<Layout>, };
+aliases: { [key in string]: string }, 
+/**
+ * What each monitor declared it can do, keyed by device path, as last read
+ * (CONTEXT.md: Capabilities). Entries for monitors this machine has never seen
+ * stay, so an import from another machine keeps them.
+ */
+capabilities: { [key in string]: Capabilities }, layouts: Array<Layout>, };
 
 /**
  * Whether the probe could ask the monitor over DDC-CI. Only an Active monitor is
@@ -112,6 +149,11 @@ export type LayoutEdits = { steps: Array<Step>, dropWaitSeconds: number, availab
  * pieces come back empty.
  */
 export type LineParts = { name: string, action: string, detail: string, };
+
+/**
+ * One display mode Windows lists: a resolution at a refresh rate.
+ */
+export type Mode = { width: number, height: number, hz: number, };
 
 /**
  * One physical monitor, identified by its device path (ADR-0005).

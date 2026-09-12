@@ -5,6 +5,7 @@ import type { CaptureOutcome, InputSource, Inventory, Layout, LayoutEdits, Scrip
 import { toListItem, upsertLayout } from '@/domain/layouts';
 import { DEFAULT_EDITS, editsOf, isDirty } from '@/domain/steps';
 import { appendLog, applyProgress, newSwitchRun, type SwitchRun } from '@/domain/switch';
+import { useMonitorsStore } from '@/features/monitors/monitors.store';
 import {
   cancelSwitch as cancelSwitchScript,
   captureLayout,
@@ -93,6 +94,9 @@ export const useLayoutsStore = defineStore('layouts', () => {
     try {
       inventory.value = await runProbe();
       probeError.value = null;
+      // First sight: a monitor without capabilities gets them read now, in the
+      // background; the probe itself never waits for it.
+      void useMonitorsStore().readMissing();
     } catch (cause) {
       probeError.value = errorMessage(cause);
     } finally {
@@ -303,6 +307,7 @@ export const useLayoutsStore = defineStore('layouts', () => {
       }
       layouts.value = config.layouts;
       aliases.value = config.aliases;
+      await useMonitorsStore().load();
       selectedId.value = config.layouts[0]?.id ?? null;
       switchRun.value = null;
       draft.value = null;

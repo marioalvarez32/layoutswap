@@ -134,6 +134,7 @@ pub struct Script {
 }
 
 const PROBE_TEMPLATE: &str = include_str!("../../templates/probe.ps1.tmpl");
+const CAPABILITIES_TEMPLATE: &str = include_str!("../../templates/capabilities.ps1.tmpl");
 const SWITCH_TEMPLATE: &str = include_str!("../../templates/switch.ps1.tmpl");
 
 /// The probe script. `rendered_at` lands in the header so a user can tell which app
@@ -141,6 +142,14 @@ const SWITCH_TEMPLATE: &str = include_str!("../../templates/switch.ps1.tmpl");
 pub fn render_probe(rendered_at: &str) -> Script {
     Script {
         text: PROBE_TEMPLATE.replace("{{RENDERED_AT}}", rendered_at),
+    }
+}
+
+/// The capabilities script, written beside the probe and run after it (CONTEXT.md:
+/// Capabilities). `rendered_at` lands in the header as for the probe.
+pub fn render_capabilities(rendered_at: &str) -> Script {
+    Script {
+        text: CAPABILITIES_TEMPLATE.replace("{{RENDERED_AT}}", rendered_at),
     }
 }
 
@@ -497,6 +506,21 @@ mod tests {
     }
 
     #[test]
+    fn the_capabilities_script_renders_to_its_golden_file() {
+        let rendered = render_capabilities(RENDERED_AT).text;
+        let golden = fs::read_to_string(golden_path("capabilities.ps1")).expect(
+            "tests/golden/capabilities.ps1 is missing; run `cargo test -- --ignored write_golden_files`",
+        );
+        assert_eq!(
+            normalise(&rendered),
+            normalise(&golden),
+            "the rendered capabilities script differs from tests/golden/capabilities.ps1; if the change is intended, run `cargo test -- --ignored write_golden_files`"
+        );
+        assert!(rendered.contains("rendered 2026-09-09T14:32:05-05:00"));
+        assert!(!rendered.contains("{{"), "every placeholder is filled");
+    }
+
+    #[test]
     fn the_switch_scripts_render_to_their_golden_files() {
         for (name, layout, aliases) in fixtures() {
             let golden = fs::read_to_string(golden_path(name)).unwrap_or_else(|_| {
@@ -765,6 +789,7 @@ mod tests {
     fn write_golden_files() {
         fs::create_dir_all(golden_path("")).unwrap();
         fs::write(golden_path("probe.ps1"), render_probe(RENDERED_AT).text).unwrap();
+        fs::write(golden_path("capabilities.ps1"), render_capabilities(RENDERED_AT).text).unwrap();
         for (name, layout, aliases) in fixtures() {
             fs::write(golden_path(name), render(&layout, &aliases)).unwrap();
         }

@@ -62,12 +62,25 @@ Consequences only when they carry information. Refer to one in prose as `ADR-000
 
 - `main` is releasable. Work happens on `feat/<slug>` or `fix/<slug>` branches.
 - Commit subjects follow Conventional Commits: `feat(layouts): capture on/off set`.
+  A `commit-msg` hook runs commitlint (`commitlint.config.mjs`) and refuses a
+  subject that does not fit, because semantic-release reads the subjects to pick
+  the version and write the changelog. `pnpm install` sets the hook up.
 - A pull request references its issue and passes lint, typecheck and tests.
 
 ## Releases
 
-`CHANGELOG.md` follows Keep a Changelog from the first release onward. Before a
-release, run the hardware checklist on a real multi-monitor machine:
+Releases are automatic. After every green CI run on `main`, the Release workflow
+runs semantic-release (`.releaserc.json`): a `fix` commit since the last release
+makes a patch version, a `feat` a minor, a `BREAKING CHANGE` footer a major; with
+none of those, nothing happens. It writes the notes into `CHANGELOG.md`, bumps the
+version in `package.json`, `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`
+(`scripts/set-version.mjs`), builds the installers, commits and tags, and publishes
+a GitHub release with the installers attached. Nothing in `CHANGELOG.md` is edited
+by hand. The `v0.0.0` tag on the first commit is what makes the first release
+`0.1.0`.
+
+Before merging work that will release, run the hardware checklist on a real
+multi-monitor machine:
 
 1. The probe lists every connected monitor with the right state.
 2. Capture a layout, switch away, switch back; the arrangement is identical.
